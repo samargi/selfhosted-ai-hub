@@ -1,0 +1,110 @@
+services:
+  caddy:
+    image: caddy:2.7
+    restart: unless-stopped
+    volumes:
+      - ./etc/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    depends_on:
+      - openwebui
+      - n8n
+      - qdrant
+      - minio
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-hub}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    restart: unless-stopped
+    env_file:
+      - ./etc/open-webui/.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./etc/open-webui/data:/app/backend/data
+
+  pipelines:
+    image: ghcr.io/open-webui/pipelines:main
+    restart: unless-stopped
+    env_file:
+      - ./etc/pipelines/.env
+    ports:
+      - "9099:9099"
+    volumes:
+      - ./etc/pipelines/pipelines:/app/pipelines/
+    environment:
+      - PIPELINES_API_KEY=${PIPELINES_API_KEY}
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - ./etc/n8n/.env
+    ports:
+      - "5678:5678"     # jos käytät reverse proxya samalta hostilta, tämä on ok
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  litellm:
+    image: litellm/litellm:latest
+    restart: unless-stopped
+    volumes:
+      - ./etc/litellm/config.yaml:/etc/litellm/config.yaml:ro
+    ports:
+      - "9090:4000"
+    env_file:
+      - ./etc/litellm/.env
+    command: >
+      --config /etc/litellm/config.yaml --detailed_debug
+
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+  qdrant_data:
+  minio_data:
+  n8n_data:
+  redis_data:
+

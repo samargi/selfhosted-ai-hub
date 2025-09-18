@@ -1,0 +1,57 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# Node / n8n
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker / runtime
+.env
+
+*.env
+*/.env
+*/*/.env
+*/*/config.yaml
+*/*/.ssh/*
+logs/
+backups/
+data/
+volumes/
+.tmp/
+.cache/
+
+# MinIO artifacts
+minio_data/
+qdrant_data/
+postgres_data/
+caddy_data/
+caddy_config/
+openwebui_data/
+n8n_data/
+redis_data/
+
+# Configuration files
+etc/caddy/certs/*
+
+#Pipelines
+etc/pipelines/pipelines/*
+
+#Open WebUI
+etc/open-webui/data/*
+

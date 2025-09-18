@@ -1,0 +1,20 @@
+model_list: 
+  - model_name: yi-coder-1.5b-chat
+    litellm_params: # all params accepted by litellm.completion() - https://docs.litellm.ai/docs/completion/input
+      model: openai/yi-coder:1.5b-chat-q8_0
+      api_base: http://localhost:11434/v1
+  - model_name: gpt4o
+    litellm_params:
+      model: gpt-4o-2024-08-06
+      api_base: https://api.openai.com/v1
+      api_key: sk-
+  - model_name: llama-3.1-8b-instant
+    litellm_params:
+      model: openai/llama-3.1-8b-instant
+      api_base: https://api.groq.com/openai/v1
+      api_key: gsk_
+  - model_name: reflection-70b
+    litellm_params:
+      model: openai/mattshumer/reflection-70b:free
+      api_base: https://openrouter.ai/api/v1
+      api_key: sk-or-v1-

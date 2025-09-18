@@ -1,0 +1,90 @@
+{
+    debug
+}
+
+https://{$DOMAIN} {
+    tls {
+        alpn http/1.1 h2 acme-tls/1
+    }
+
+    log {
+    output file /data/caddy/logs/access.log {
+        roll_size 10MiB
+        roll_keep 5
+        roll_keep_for 720h
+    }
+    format json
+}
+
+    @allowed_ip {
+        remote_ip 172.18.0.0/16
+    }
+
+    handle @allowed_ip {
+        reverse_proxy openwebui:8080
+    }
+
+    #handle {
+    #    respond "Access Denied" 403
+    #}
+
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
+
+https://n8n.{$DOMAIN} {
+    tls {
+        alpn http/1.1 h2 acme-tls/1
+    }
+
+    @allowed_ip {
+        remote_ip 172.18.0.0/16
+    }
+
+    handle @allowed_ip {
+        reverse_proxy n8n:5678
+    }
+
+    handle {
+        respond "Access Denied" 403
+    }
+}
+
+https://{$DOMAIN}:4444 {
+    tls {
+        alpn http/1.1 h2 acme-tls/1
+    }
+
+    @allowed_ip {
+        remote_ip 172.18.0.0/16
+    }
+
+    handle @allowed_ip {
+        reverse_proxy qdrant:6333
+    }
+
+    handle {
+        respond "Access Denied" 403
+    }
+}
+
+https://{$DOMAIN}:4445 {
+    tls {
+        alpn http/1.1 h2 acme-tls/1
+    }
+
+    @allowed_ip {
+        remote_ip 172.18.0.0/16
+    }
+
+    handle @allowed_ip {
+        reverse_proxy minio:9001
+    }
+
+    handle {
+        respond "Access Denied" 403
+    }
+}
