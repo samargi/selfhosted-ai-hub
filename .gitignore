@@ -54,4 +54,9 @@ etc/pipelines/pipelines/*
 
 #Open WebUI
 etc/open-webui/data/*
+etc/open-webui/backend/*
+etc/open-webui/build/*
+
+# Functions
+functions/*
 
