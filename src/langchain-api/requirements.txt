@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-multipart
+
+langchain
+langgraph
+langchain-openai
+langchain-community
+
+qdrant-client
+redis
+boto3
