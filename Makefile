@@ -33,7 +33,7 @@ logs:
 	@if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
 		echo "Usage: make logs <container_name>"; exit 2; \
 	else \
-		$(DOCKER_COMPOSE) logs -f $(word 2, $(MAKECMDGOALS)); \
+		$(DOCKER_COMPOSE) logs --tail=100 -f $(word 2, $(MAKECMDGOALS)); \
 	fi;
 
 # Validate environment and configuration
@@ -145,7 +145,7 @@ help:
 	@echo "  make stop               - Stop the services"
 	@echo "  make restart            - Restart the services"
 	@echo "  make delete             - Remove all containers and networks"
-	@echo "  make logs               - Show logs for a specified service"
+	@echo "  make logs               - Show logs for a specified service"	
 	@echo "  make shell              - Run a shell in a specified container"
 	@echo "  make set-permissions    - Grant necessary permissions for certs access"
 	@echo "  make env                - Validate the environment/configuration"
