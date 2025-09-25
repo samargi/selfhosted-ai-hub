@@ -12,9 +12,8 @@ services:
       - DOMAIN=${DOMAIN}
     depends_on:
       - openwebui
-      - n8n
-      - qdrant
-      - minio
+      - langchain-api
+      - pipelines
 
   postgres:
     image: postgres:16
@@ -22,9 +21,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-hub}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-hub}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -41,21 +40,19 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
 
-  # One-shot job: copies image assets -> host folders if empty.
   seed-openwebui-assets:
     image: ghcr.io/open-webui/open-webui:main
-    user: "0:0"                 # run seeder as root
+    user: "0:0"
     restart: "no"
     command: |
       sh -c '
       set -eu
       mkdir -p /host/build /host/backend-static
-
       if [ -f /app/build/index.html ]; then
         SRC_FRONT=/app/build
       elif [ -f /app/frontend/dist/index.html ]; then
@@ -65,14 +62,12 @@ services:
         exit 2
       fi
       echo "[seed] Using frontend source: $$SRC_FRONT"
-
       if [ -z "$$(ls -A /host/build 2>/dev/null || true)" ]; then
         echo "[seed] Seeding build -> /host/build"
         cp -a "$$SRC_FRONT/." /host/build/
       else
         echo "[seed] /host/build already present, skipping."
       fi
-
       if [ -z "$$(ls -A /host/backend-static 2>/dev/null || true)" ]; then
         if [ -d /app/backend/open_webui/static ]; then
           echo "[seed] Seeding static -> /host/backend-static"
@@ -93,12 +88,27 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
-    env_file:
-      - ./etc/open-webui/.env
     environment:
-      FRONTEND_BUILD_DIR: /app/build
-      STATIC_DIR: /app/backend/static
-      DATA_DIR: /app/backend/data
+      - FRONTEND_BUILD_DIR=${FRONTEND_BUILD_DIR}
+      - STATIC_DIR=${STATIC_DIR}
+      - DATA_DIR=${DATA_DIR}
+      - ENABLE_WEB_SEARCH=${ENABLE_WEB_SEARCH}
+      - WEB_SEARCH_ENGINE=${WEB_SEARCH_ENGINE}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      - OPENWEBUI_DEFAULT_MODELS_VISIBILITY=${OPENWEBUI_DEFAULT_MODELS_VISIBILITY}
+      - OPENAI_API_BASE_URLS=${OPENAI_API_BASE_URLS}
+      - OPENAI_API_KEYS=${OPENAI_API_KEYS}
+      - ENABLE_FOLLOW_UP_GENERATION=${ENABLE_FOLLOW_UP_GENERATION}
+      - DEFAULT_PROMPT_SUGGESTIONS=${DEFAULT_PROMPT_SUGGESTIONS}
+      - ENABLE_PERSISTENT_CONFIG=${ENABLE_PERSISTENT_CONFIG}
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}
+      - WEBUI_NAME=${WEBUI_NAME}
+      - ENABLE_CHANNELS=${ENABLE_CHANNELS}
+      - ENABLE_COMMUNITY_SHARING=${ENABLE_COMMUNITY_SHARING}
+      - ENABLE_FORWARD_USER_INFO_HEADERS=${ENABLE_FORWARD_USER_INFO_HEADERS}
+      - VECTOR_DB=${VECTOR_DB}
+      - QDRANT_URI=${QDRANT_URI}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
     volumes:
       - ./etc/open-webui/build:/app/build
       - ./etc/open-webui/backend/static:/app/backend/static
@@ -110,26 +120,51 @@ services:
   pipelines:
     image: ghcr.io/open-webui/pipelines:main
     restart: unless-stopped
-    env_file:
-      - ./etc/pipelines/.env
     ports:
       - "9099:9099"
     volumes:
       - ./etc/pipelines/pipelines:/app/pipelines/
     environment:
       - PIPELINES_API_KEY=${PIPELINES_API_KEY}
+      - UPSTREAM_BASE_URL=${UPSTREAM_BASE_URL}
+      - UPSTREAM_API_KEY=${UPSTREAM_API_KEY}
+      - THINK_MODEL=${THINK_MODEL}
+      - RESP_MODEL=${RESP_MODEL}
+      - MIN_UPDATES=${MIN_UPDATES}
+      - MAX_UPDATES=${MAX_UPDATES}
+      - MAX_THINK_TOKENS=${MAX_THINK_TOKENS}
+      - MAX_ANSWER_TOKENS=${MAX_ANSWER_TOKENS}
+      - PIPELINES_DIR=${PIPELINES_DIR}
 
   n8n:
     image: n8nio/n8n:latest
     restart: unless-stopped
     depends_on:
       - postgres
-    env_file:
-      - ./etc/n8n/.env
     ports:
-      - "5678:5678"     
+      - "5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
+    environment:
+      # Map namespaced root vars to what n8n expects inside container
+      - DB_TYPE=${N8N_DB_TYPE}
+      - DB_POSTGRESDB_HOST=${N8N_DB_POSTGRESDB_HOST}
+      - DB_POSTGRESDB_PORT=${N8N_DB_POSTGRESDB_PORT}
+      - DB_POSTGRESDB_DATABASE=${N8N_DB_POSTGRESDB_DATABASE}
+      - DB_POSTGRESDB_USER=${N8N_DB_POSTGRESDB_USER}
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_POSTGRESDB_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT}
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - N8N_PROXY_HOPS=${N8N_PROXY_HOPS}
+      - N8N_TRUSTED_PROXIES=${N8N_TRUSTED_PROXIES}
+      - N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=${N8N_BLOCK_ENV_ACCESS_IN_NODE}
 
   litellm:
     image: litellm/litellm:latest
@@ -138,8 +173,12 @@ services:
       - ./etc/litellm/config.yaml:/etc/litellm/config.yaml:ro
     ports:
       - "9090:4000"
-    env_file:
-      - ./etc/litellm/.env
+    environment:
+      - OPENAI_API_KEY=${LITELLM_UPSTREAM_API_KEY}
+      - UI_USERNAME=${UI_USERNAME}
+      - UI_PASSWORD=${UI_PASSWORD}
+      - PROXY_ADMIN_ID=${PROXY_ADMIN_ID}
+      - LITELLM_LOCAL_MODEL_COST_MAP=${LITELLM_LOCAL_MODEL_COST_MAP}
     command: >
       --config /etc/litellm/config.yaml --detailed_debug
 
@@ -151,6 +190,48 @@ services:
     volumes:
       - redis_data:/data
 
+  langchain-api:
+    build:
+      context: ./src/langchain-api
+    restart: unless-stopped
+    depends_on:
+      - litellm
+      - qdrant
+      - redis
+      - minio
+    environment:
+      - API_KEY=${LANGCHAIN_API_KEY}
+      - LITELLM_BASE_URL=${LITELLM_BASE_URL}
+      - QDRANT_URL=${QDRANT_URL}
+      - REDIS_URL=${REDIS_URL}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      # pass LiteLLM upstream key as OPENAI_API_KEY to satisfy LangChain client
+      - OPENAI_API_KEY=${LITELLM_UPSTREAM_API_KEY}
+      - LITELLM_MODEL=${LITELLM_MODEL}
+    volumes:
+      - ./src/langchain-api:/app
+    ports:
+      - "8010:8010"
+
+  flowise:
+    image: flowiseai/flowise:latest
+    restart: unless-stopped
+    depends_on:
+      - litellm
+      - qdrant
+      - redis
+    environment:
+      - FLOWISE_USERNAME=${FLOWISE_USERNAME}
+      - FLOWISE_PASSWORD=${FLOWISE_PASSWORD}
+      - OPENAI_BASE_PATH=${OPENAI_BASE_PATH}
+      - DATABASE_PATH=/data
+    volumes:
+      - flowise_data:/data
+    ports:
+      - "3000:3000"
+
 volumes:
   caddy_data:
   caddy_config:
@@ -159,4 +240,4 @@ volumes:
   minio_data:
   n8n_data:
   redis_data:
-
+  flowise_data:

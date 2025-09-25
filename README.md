@@ -14,8 +14,19 @@ Focus: **small stack**, **secure by default**, **easy to run**.
 - **Ingestion service** (Python) – OCR → chunk → embed → index
 - **Litellm (Port 9090)** – Refer to Litellm documentation for full setup details.
 - **Redis** – Caching for improved response times and efficiency
-- **no-ip DynDNS** – Simple DNS when exposing to the internet
+- **LangChain-API (Port 8010)** – Multi-tenant AI processing and RAG capabilities.
+- **Flowise (Port 3000)** – Visual prototyping over LangChain for streamlined workflows.
 
+### System Requirements (Minimum, partly tested)
+
+To run this setup efficiently, the following are the recommended minimum requirements:
+
+- **CPU**: Quad-core processor
+- **Memory**: 4 GB RAM (8 GB or more recommended for optimal performance)
+- **Storage**: 64 GB available storage (128 GB+ SSD preferred for better performance and reliability)
+- **Network**: Stable network connection for service interactions and data transfer
+
+These specifications are designed to ensure smooth operation for typical use cases. More demanding workloads may require adjustments or enhanced hardware capabilities.
 
 ## Use Cases
 

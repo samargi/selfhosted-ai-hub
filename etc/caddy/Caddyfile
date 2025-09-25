@@ -2,88 +2,113 @@
     debug
 }
 
-https://{$DOMAIN} {
+# ---------- Root domain ----------
+https://{env.DOMAIN} {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
 
     log {
-    output file /data/caddy/logs/access.log {
-        roll_size 10MiB
-        roll_keep 5
-        roll_keep_for 720h
-    }
-    format json
-}
-
-    @allowed_ip {
-        remote_ip 172.18.0.0/16
+        output file /data/caddy/logs/access.log {
+            roll_size 10MiB
+            roll_keep 5
+            roll_keep_for 720h
+        }
+        format json
     }
 
-    handle @allowed_ip {
-        reverse_proxy openwebui:8080
-    }
-
-    #handle {
-    #    respond "Access Denied" 403
-    #}
-
+    # Common security headers
     header {
         X-Frame-Options "SAMEORIGIN"
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
+        # add HSTS if you’re confident everything is HTTPS-only:
+        # Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+
+    encode zstd gzip
+
+    # Allow only Docker network for root site (Open WebUI)
+    @docker_net {
+        remote_ip 172.18.0.0/16
+    }
+
+    # Path routes (strip prefix for upstream services)
+    handle_path /langchain* {
+        reverse_proxy langchain-api:8010
+    }
+
+    handle_path /flowise* {
+        reverse_proxy flowise:3000
+    }
+
+    # Default: Open WebUI for allowed Docker IPs
+    handle @docker_net {
+        reverse_proxy openwebui:8080
+    }
+
+    # Everyone else → 403
+    handle {
+        respond "Access Denied" 403
     }
 }
 
-https://n8n.{$DOMAIN} {
+# ---------- n8n subdomain ----------
+https://n8n.{env.DOMAIN} {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
 
-    @allowed_ip {
-        remote_ip 172.18.0.0/16
+    encode zstd gzip
+
+    # Forward standard proxy headers (Caddy sets these by default, but explicit is fine)
+    reverse_proxy n8n:5678 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host  {host}
+        header_up X-Forwarded-For   {remote}
     }
 
-    handle @allowed_ip {
+    # OPTIONAL: lock to Docker subnet (comment out to allow public access)
+    @docker_net {
+        remote_ip 172.18.0.0/16
+    }
+    handle @docker_net {
         reverse_proxy n8n:5678
     }
-
     handle {
         respond "Access Denied" 403
     }
 }
 
-https://{$DOMAIN}:4444 {
+# ---------- Qdrant dashboard on custom TLS port ----------
+https://{env.DOMAIN}:4444 {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
 
-    @allowed_ip {
+    @docker_net {
         remote_ip 172.18.0.0/16
     }
-
-    handle @allowed_ip {
+    handle @docker_net {
         reverse_proxy qdrant:6333
     }
-
     handle {
         respond "Access Denied" 403
     }
 }
 
-https://{$DOMAIN}:4445 {
+# ---------- MinIO console on custom TLS port ----------
+https://{env.DOMAIN}:4445 {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
 
-    @allowed_ip {
+    @docker_net {
         remote_ip 172.18.0.0/16
     }
-
-    handle @allowed_ip {
+    handle @docker_net {
         reverse_proxy minio:9001
     }
-
     handle {
         respond "Access Denied" 403
     }
