@@ -46,7 +46,7 @@ shell:
 	if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
 		echo "Usage: make shell <container_name>"; exit 2; \
 	else \
-		$(DOCKER_COMPOSE) exec $(word 2, $(MAKECMDGOALS)) /bin/bash; \
+		$(DOCKER_COMPOSE) exec $(word 2, $(MAKECMDGOALS)) sh -c 'bash || sh' \
 	fi;
 
 # Grant necessary permissions to the certificate folder and files for HTTP access
