@@ -10,6 +10,7 @@ services:
       - "443:443"
     environment:
       - DOMAIN=${DOMAIN}
+      - N8N_HOST=${N8N_HOST}
     depends_on:
       - openwebui
       - n8n

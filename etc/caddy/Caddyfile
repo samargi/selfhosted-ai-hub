@@ -3,7 +3,7 @@
 }
 
 # ---------- Root domain ----------
-https://{env.DOMAIN} {
+https://{$DOMAIN} {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
@@ -54,7 +54,7 @@ https://{env.DOMAIN} {
 }
 
 # ---------- n8n subdomain ----------
-https://n8n.{env.DOMAIN} {
+https://{$DOMAIN} {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
@@ -81,7 +81,7 @@ https://n8n.{env.DOMAIN} {
 }
 
 # ---------- Qdrant dashboard on custom TLS port ----------
-https://{env.DOMAIN}:4444 {
+https://{$DOMAIN}:4444 {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
@@ -98,7 +98,7 @@ https://{env.DOMAIN}:4444 {
 }
 
 # ---------- MinIO console on custom TLS port ----------
-https://{env.DOMAIN}:4445 {
+https://{$DOMAIN}:4445 {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
