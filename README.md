@@ -56,21 +56,21 @@ The selfhosted-ai-hub offers unique solutions for both family environments and c
 #### Starting and Stopping Services
 - **Start the Services**:
   Run the following command to start all services in detached mode.
-  ```sh
+```sh
   make start
-  ```
+```
 
 - **Stop the Services**:
   Stop all currently running services gracefully.
-  ```sh
+```sh
   make stop
-  ```
+```
 
-- **Restart the Services**:
-  To restart all services, ensuring they're refreshed.
-  ```sh
-  make restart
-  ```
+- **Restart a Service**:
+  To restart a specific service.
+```sh
+  make restart <service_name>
+```
 
 ### Service Access
 
@@ -83,7 +83,6 @@ The selfhosted-ai-hub offers unique solutions for both family environments and c
 ### Configuration for Litellm
 
 To set up Litellm, first copy the example configuration:
-
 ```sh
 cp ./etc/litellm/config.yaml.example ./etc/litellm/config.yaml
 ```
@@ -97,14 +96,6 @@ Edit `config.yaml` to include your specific configurations. For detailed guidanc
 ### Firewall Configuration
 
 To ensure traffic flows correctly within your network, ensure your firewall settings allow traffic on these ports and from your expected IP ranges, maintaining both security and accessibility.
-
-By following these steps, you'll establish a secure VPN connection and ensure outside users can access your services via an authenticated and encrypted tunnel.
-
-### Firewall Configuration
-
-To ensure traffic flows correctly within your network, ensure your firewall settings allow traffic on these ports and from your expected IP ranges, maintaining both security and accessibility.
-
-By following these steps, you'll establish a secure VPN connection and ensure outside users can access your services via an authenticated and encrypted tunnel.
 
 ## SSL Certificates Configuration with Caddy
 
@@ -131,17 +122,80 @@ These steps utilize Caddy's built-in automation to secure your services with SSL
 - **CSR Use**: CSRs serve a one-time purpose for each certificate issuance. Renewing or obtaining new certificates will typically involve creating new CSRs.
 - **Security Practices**: It is crucial to secure the private keys generated alongside your CSRs to maintain encryption and access security.
 
-### Additional Commands
+## Custom Features
 
-- **Clear Logs for a Service**:
-  Use this to clear logs of a specified service (e.g., Caddy) easily.
-  ```sh
-  make clear-logs selfhosted-ai-hub-caddy-1
-  ```
+This project includes optional custom enhancements to Open WebUI. These modifications are maintained separately and documented in `Agents.md` for advanced users who wish to extend functionality.
+
+**Note**: Custom features are entirely optional and the system works perfectly with the official Open WebUI image.
+
+### Building Custom Open WebUI (Optional)
+
+If you want to use custom features:
+```sh
+# Build custom Open WebUI image
+make build-webui
+
+# Update when new version available
+make rebuild-webui
+```
+
+See `Agents.md` for detailed architecture and development documentation.
+
+## Additional Commands
+
+- **Show Logs for a Service**:
+  Display logs for a specified service.
+```sh
+  make logs <service_name>
+```
+
+- **Open Shell in Container**:
+  Access a shell in a running container.
+```sh
+  make shell <container_name>
+```
+
+- **Grant Permissions for Certificates**:
+  Allow HTTP access to certificate folder and files.
+```sh
+  make set-permissions
+```
 
 - **Validate Docker Compose Configuration**:
   Check and validate current Docker Compose configurations.
-  ```sh
+```sh
   make env
-  ```
+```
 
+- **Update All Services**:
+  Pull latest images and restart all services.
+```sh
+  make update-all
+```
+
+- **Check Open WebUI Updates (Preview)**:
+  Preview changes between image assets and local frontend/static without applying.
+```sh
+  make check-webui-diff
+```
+
+- **Update Open WebUI Assets**:
+  Sync local frontend/static from the latest image assets.
+```sh
+  make update-webui
+```
+
+### Advanced Management
+
+For detailed architecture, custom features, and development guide, see `Agents.md`.
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+- Changes are tested locally
+- Documentation is updated
+- Security best practices are followed
+
+## License
+
+See LICENSE file for details.
