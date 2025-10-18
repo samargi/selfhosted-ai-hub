@@ -66,19 +66,20 @@ services:
   # One-shot job: copies image assets -> host folders if empty.
   seed-openwebui-assets:
     image: ghcr.io/open-webui/open-webui:main
-    user: "0:0"                 # run seeder as root
+    user: "0:0"
     restart: "no"
     command: |
       sh -c '
       set -eu
-      mkdir -p /host/build /host/backend-static
+      mkdir -p /host/build /host/backend-static /host/backend-code
 
+      # Frontend
       if [ -f /app/build/index.html ]; then
         SRC_FRONT=/app/build
       elif [ -f /app/frontend/dist/index.html ]; then
         SRC_FRONT=/app/frontend/dist
       else
-        echo "[seed][error] Could not locate frontend build (looked at /app/build and /app/frontend/dist)"
+        echo "[seed][error] Could not locate frontend build"
         exit 2
       fi
       echo "[seed] Using frontend source: $$SRC_FRONT"
@@ -90,6 +91,7 @@ services:
         echo "[seed] /host/build already present, skipping."
       fi
 
+      # Static assets
       if [ -z "$$(ls -A /host/backend-static 2>/dev/null || true)" ]; then
         if [ -d /app/backend/open_webui/static ]; then
           echo "[seed] Seeding static -> /host/backend-static"
@@ -100,13 +102,27 @@ services:
       else
         echo "[seed] /host/backend-static already present, skipping."
       fi
+
+      # Backend code
+      if [ -z "$$(ls -A /host/backend-code 2>/dev/null || true)" ]; then
+        if [ -d /app/backend/open_webui ]; then
+          echo "[seed] Seeding backend code -> /host/backend-code"
+          cp -a /app/backend/open_webui/. /host/backend-code/
+        else
+          echo "[seed][warn] /app/backend/open_webui not found, skipping backend code."
+        fi
+      else
+        echo "[seed] /host/backend-code already present, skipping."
+      fi
       '
     volumes:
       - ./etc/open-webui/build:/host/build
       - ./etc/open-webui/backend/static:/host/backend-static
+      - ./etc/open-webui/backend/open_webui:/host/backend-code
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -119,12 +135,11 @@ services:
     volumes:
       - ./etc/open-webui/build:/app/build
       - ./etc/open-webui/backend/static:/app/backend/static
+      - ./etc/open-webui/backend/open_webui:/app/backend/open_webui
       - ./etc/open-webui/data:/app/backend/data
     depends_on:
       seed-openwebui-assets:
         condition: service_completed_successfully
-    container_name: open-webui
-    restart: unless-stopped
 
   pipelines:
     image: ghcr.io/open-webui/pipelines:main
@@ -165,7 +180,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - "5678:5678"     
+      - "5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
 
