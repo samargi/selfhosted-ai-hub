@@ -76,10 +76,10 @@ etc/pipelines/pipelines/*
 etc/open-webui/data/*
 etc/open-webui/backend/*
 etc/open-webui/build/*
+etc/open-webui/entrypoint.sh
+etc/open-webui/repo
 
 # Functions
 functions/*
 
-etc/open-webui/entrypoint.sh
-etc/open-webui/src
-etc/open-webui/repo
+
