@@ -82,3 +82,4 @@ functions/*
 
 etc/open-webui/entrypoint.sh
 etc/open-webui/src
+etc/open-webui/repo
