@@ -1,22 +1,16 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: selfhosted-ai-hub-ollama-1
+    container_name: ollama
     restart: unless-stopped
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    #deploy:
-    #  resources:
-    #    reservations:
-    #      devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
 
   caddy:
     image: caddy:2.7
+    container_name: caddy
     restart: unless-stopped
     volumes:
       - ./etc/caddy/Caddyfile:/etc/caddy/Caddyfile
@@ -35,18 +29,20 @@ services:
 
   postgres:
     image: postgres:16
+    container_name: postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-hub}
+      POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-hub}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   qdrant:
     image: qdrant/qdrant:latest
+    container_name: qdrant
     restart: unless-stopped
     ports:
       - "6333:6333"
@@ -55,6 +51,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    container_name: minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -63,22 +60,23 @@ services:
     volumes:
       - minio_data:/data
 
-  # One-shot job: copies image assets -> host folders if empty.
   seed-openwebui-assets:
     image: ghcr.io/open-webui/open-webui:main
-    user: "0:0"                 # run seeder as root
+    container_name: seed-openwebui-assets
+    user: "0:0"
     restart: "no"
     command: |
       sh -c '
       set -eu
       mkdir -p /host/build /host/backend-static
 
+      # Frontend
       if [ -f /app/build/index.html ]; then
         SRC_FRONT=/app/build
       elif [ -f /app/frontend/dist/index.html ]; then
         SRC_FRONT=/app/frontend/dist
       else
-        echo "[seed][error] Could not locate frontend build (looked at /app/build and /app/frontend/dist)"
+        echo "[seed][error] Could not locate frontend build"
         exit 2
       fi
       echo "[seed] Using frontend source: $$SRC_FRONT"
@@ -90,6 +88,7 @@ services:
         echo "[seed] /host/build already present, skipping."
       fi
 
+      # Static assets
       if [ -z "$$(ls -A /host/backend-static 2>/dev/null || true)" ]; then
         if [ -d /app/backend/open_webui/static ]; then
           echo "[seed] Seeding static -> /host/backend-static"
@@ -107,15 +106,48 @@ services:
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
+      # Build & Static
       FRONTEND_BUILD_DIR: ${FRONTEND_BUILD_DIR}
       STATIC_DIR: ${STATIC_DIR}
       DATA_DIR: ${DATA_DIR}
-      PIPELINES_URLS: ${PIPELINES_URLS}
+      
+      # Authentication
+      WEBUI_AUTH: ${WEBUI_AUTH}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      WEBUI_NAME: ${WEBUI_NAME}
+      
+      # OpenAI Integration
+      OPENWEBUI_OPENAI_API_KEY: ${OPENWEBUI_OPENAI_API_KEY}
+      OPENAI_API_BASE_URLS: ${OPENAI_API_BASE_URLS}
+      OPENAI_API_KEYS: ${OPENAI_API_KEYS}
       ENABLE_OPENAI_API: ${ENABLE_OPENAI_API}
+      
+      # Pipelines
+      PIPELINES_URLS: ${PIPELINES_URLS}
+      
+      # Search
+      ENABLE_WEB_SEARCH: ${ENABLE_WEB_SEARCH}
+      WEB_SEARCH_ENGINE: ${WEB_SEARCH_ENGINE}
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+      
+      # Vector DB
+      VECTOR_DB: ${VECTOR_DB}
+      QDRANT_URI: ${QDRANT_URI}
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      
+      # Features
+      OPENWEBUI_DEFAULT_MODELS_VISIBILITY: ${OPENWEBUI_DEFAULT_MODELS_VISIBILITY}
+      ENABLE_FOLLOW_UP_GENERATION: ${ENABLE_FOLLOW_UP_GENERATION}
+      DEFAULT_PROMPT_SUGGESTIONS: ${DEFAULT_PROMPT_SUGGESTIONS}
+      ENABLE_PERSISTENT_CONFIG: ${ENABLE_PERSISTENT_CONFIG}
+      ENABLE_CHANNELS: ${ENABLE_CHANNELS}
+      ENABLE_COMMUNITY_SHARING: ${ENABLE_COMMUNITY_SHARING}
+      ENABLE_FORWARD_USER_INFO_HEADERS: ${ENABLE_FORWARD_USER_INFO_HEADERS}
     volumes:
       - ./etc/open-webui/build:/app/build
       - ./etc/open-webui/backend/static:/app/backend/static
@@ -123,22 +155,30 @@ services:
     depends_on:
       seed-openwebui-assets:
         condition: service_completed_successfully
-    container_name: open-webui
-    restart: unless-stopped
 
   pipelines:
     image: ghcr.io/open-webui/pipelines:main
+    container_name: pipelines
     restart: unless-stopped
     ports:
       - "9099:9099"
     volumes:
-      - ./etc/pipelines/pipelines:/app/pipelines/
+      - ./etc/pipelines/pipelines:/app/pipelines
     environment:
       PIPELINES_API_KEY: ${PIPELINES_API_KEY}
-      DOMAIN: ${DOMAIN}
+      PIPELINES_DIR: ${PIPELINES_DIR}
+      MIN_UPDATES: ${MIN_UPDATES}
+      MAX_UPDATES: ${MAX_UPDATES}
+      MAX_THINK_TOKENS: ${MAX_THINK_TOKENS}
+      MAX_ANSWER_TOKENS: ${MAX_ANSWER_TOKENS}
+      UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL}
+      UPSTREAM_API_KEY: ${UPSTREAM_API_KEY}
+      THINK_MODEL: ${THINK_MODEL}
+      RESP_MODEL: ${RESP_MODEL}
 
   n8n:
     image: n8nio/n8n:latest
+    container_name: n8n
     restart: unless-stopped
     environment:
       N8N_DB_TYPE: ${N8N_DB_TYPE}
@@ -146,13 +186,13 @@ services:
       N8N_DB_POSTGRESDB_PORT: ${N8N_DB_POSTGRESDB_PORT}
       N8N_DB_POSTGRESDB_DATABASE: ${N8N_DB_POSTGRESDB_DATABASE}
       N8N_DB_POSTGRESDB_USER: ${N8N_DB_POSTGRESDB_USER}
-      N8N_DB_POSTGRESDB_PASSWORD: ${N8N_DB_POSTGRESDB_USER}
+      N8N_DB_POSTGRESDB_PASSWORD: ${N8N_DB_POSTGRESDB_PASSWORD}
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
       N8N_HOST: ${N8N_HOST}
       N8N_PORT: ${N8N_PORT}
       N8N_PROTOCOL: ${N8N_PROTOCOL}
       N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL}
-      WEBHOOK_URL: ${N8N_EDITOR_BASE_URL}
+      WEBHOOK_URL: ${WEBHOOK_URL}
       N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE}
       GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
       N8N_PROXY_HOPS: ${N8N_PROXY_HOPS}
@@ -165,22 +205,29 @@ services:
     depends_on:
       - postgres
     ports:
-      - "5678:5678"     
+      - "5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
 
   litellm:
     image: litellm/litellm:latest
+    container_name: litellm
     restart: unless-stopped
     volumes:
       - ./etc/litellm/config.yaml:/etc/litellm/config.yaml:ro
     ports:
       - "9090:4000"
+    environment:
+      UI_USERNAME: ${UI_USERNAME}
+      UI_PASSWORD: ${UI_PASSWORD}
+      PROXY_ADMIN_ID: ${PROXY_ADMIN_ID}
+      LITELLM_LOCAL_MODEL_COST_MAP: ${LITELLM_LOCAL_MODEL_COST_MAP}
     command: >
       --config /etc/litellm/config.yaml --detailed_debug
 
   redis:
     image: redis:latest
+    container_name: redis
     restart: unless-stopped
     ports:
       - "6379:6379"

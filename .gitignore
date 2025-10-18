@@ -78,3 +78,4 @@ etc/open-webui/build/*
 # Functions
 functions/*
 
+etc/open-webui/entrypoint.sh
