@@ -4,12 +4,23 @@ Thumbs.db
 .idea/
 .vscode/
 src/*
-docker-compose.override.yml
-etc/open-webui/patches/*
-etc/open-webui/Dockerfile
+package.json
+package-lock.json
+
+
+# Custom features (private)
+Makefile.local
+etc/patches/
 AGENTS.md
 CUSTOM_FEATURES.md
-.tmp
+docker-compose.override.yml
+etc/open-webui/Dockerfile
+
+# Temporary files
+.tmp/
+
+# Backups
+*.bak
 
 # Python
 __pycache__/
