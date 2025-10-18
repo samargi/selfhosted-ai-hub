@@ -7,13 +7,14 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-             - driver: nvidia
-               count: 1
-               capabilities: [gpu]
+    #deploy:
+    #  resources:
+    #    reservations:
+    #      devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
   caddy:
     image: caddy:2.7
     restart: unless-stopped
@@ -24,8 +25,8 @@ services:
     ports:
       - "443:443"
     environment:
-      - DOMAIN=${DOMAIN}
-      - N8N_HOST=${N8N_HOST}
+      DOMAIN: ${DOMAIN}
+      N8N_HOST: ${N8N_HOST}
     depends_on:
       - openwebui
       - n8n
@@ -110,11 +111,11 @@ services:
     ports:
       - "8080:8080"
     environment:
-      FRONTEND_BUILD_DIR=${FRONTEND_BUILD_DIR}
-      STATIC_DIR=${STATIC_DIR}
-      DATA_DIR=${DATA_DIR}
-      PIPELINES_URLS=${PIPELINES_URLS}
-      ENABLE_OPENAI_API=${ENABLE_OPENAI_API}
+      FRONTEND_BUILD_DIR: ${FRONTEND_BUILD_DIR}
+      STATIC_DIR: ${STATIC_DIR}
+      DATA_DIR: ${DATA_DIR}
+      PIPELINES_URLS: ${PIPELINES_URLS}
+      ENABLE_OPENAI_API: ${ENABLE_OPENAI_API}
     volumes:
       - ./etc/open-webui/build:/app/build
       - ./etc/open-webui/backend/static:/app/backend/static
@@ -122,6 +123,8 @@ services:
     depends_on:
       seed-openwebui-assets:
         condition: service_completed_successfully
+    container_name: open-webui
+    restart: unless-stopped
 
   pipelines:
     image: ghcr.io/open-webui/pipelines:main
@@ -131,33 +134,34 @@ services:
     volumes:
       - ./etc/pipelines/pipelines:/app/pipelines/
     environment:
-      - PIPELINES_API_KEY=${PIPELINES_API_KEY}
+      PIPELINES_API_KEY: ${PIPELINES_API_KEY}
+      DOMAIN: ${DOMAIN}
 
   n8n:
     image: n8nio/n8n:latest
     restart: unless-stopped
     environment:
-      N8N_DB_TYPE=${N8N_DB_TYPE}
-      N8N_DB_POSTGRESDB_HOST=${N8N_DB_POSTGRESDB_HOST}
-      N8N_DB_POSTGRESDB_PORT=${N8N_DB_POSTGRESDB_PORT}
-      N8N_DB_POSTGRESDB_DATABASE=${N8N_DB_POSTGRESDB_DATABASE}
-      N8N_DB_POSTGRESDB_USER=${N8N_DB_POSTGRESDB_USER}
-      N8N_DB_POSTGRESDB_PASSWORD=${N8N_DB_POSTGRESDB_USER}
-      N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
-      N8N_HOST=${N8N_HOST}
-      N8N_PORT=${N8N_PORT}
-      N8N_PROTOCOL=${N8N_PROTOCOL}
-      N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
-      WEBHOOK_URL=${N8N_EDITOR_BASE_URL}
-      N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
-      GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
-      N8N_PROXY_HOPS=${N8N_PROXY_HOPS}
-      N8N_TRUSTED_PROXIES=${N8N_TRUSTED_PROXIES}
-      N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED}
-      N8N_BLOCK_ENV_ACCESS_IN_NODE=${N8N_BLOCK_ENV_ACCESS_IN_NODE}
-      N8N_USER_MANAGEMENT_DISABLED=${N8N_USER_MANAGEMENT_DISABLED}
-      N8N_USER_MANAGEMENT_EMAIL=${N8N_USER_MANAGEMENT_EMAIL}
-      N8N_USER_MANAGEMENT_PASSWORD=${N8N_USER_MANAGEMENT_PASSWORD}
+      N8N_DB_TYPE: ${N8N_DB_TYPE}
+      N8N_DB_POSTGRESDB_HOST: ${N8N_DB_POSTGRESDB_HOST}
+      N8N_DB_POSTGRESDB_PORT: ${N8N_DB_POSTGRESDB_PORT}
+      N8N_DB_POSTGRESDB_DATABASE: ${N8N_DB_POSTGRESDB_DATABASE}
+      N8N_DB_POSTGRESDB_USER: ${N8N_DB_POSTGRESDB_USER}
+      N8N_DB_POSTGRESDB_PASSWORD: ${N8N_DB_POSTGRESDB_USER}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: ${N8N_PORT}
+      N8N_PROTOCOL: ${N8N_PROTOCOL}
+      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL}
+      WEBHOOK_URL: ${N8N_EDITOR_BASE_URL}
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
+      N8N_PROXY_HOPS: ${N8N_PROXY_HOPS}
+      N8N_TRUSTED_PROXIES: ${N8N_TRUSTED_PROXIES}
+      N8N_RUNNERS_ENABLED: ${N8N_RUNNERS_ENABLED}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: ${N8N_BLOCK_ENV_ACCESS_IN_NODE}
+      N8N_USER_MANAGEMENT_DISABLED: ${N8N_USER_MANAGEMENT_DISABLED}
+      N8N_USER_MANAGEMENT_EMAIL: ${N8N_USER_MANAGEMENT_EMAIL}
+      N8N_USER_MANAGEMENT_PASSWORD: ${N8N_USER_MANAGEMENT_PASSWORD}
     depends_on:
       - postgres
     ports:
