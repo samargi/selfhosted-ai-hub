@@ -1,122 +1,158 @@
-# ============================================
-# Intelligent Patch System
-# ============================================
+.DEFAULT_GOAL := help
 
-# Environment
-ANTHROPIC_API_KEY ?= $(shell grep ANTHROPIC_API_KEY .env 2>/dev/null | cut -d '=' -f2 | tr -d ' ')
-PATCHES_DIR = ./etc/patches
+# Makefile for managing Docker Compose services
 
-setup-continue: ## Setup Continue CLI and patch system
-	@echo "🔧 Setting up Continue CLI..."
-	@if ! command -v continue &> /dev/null; then \
-		echo "Installing Continue CLI..."; \
-		npm install -g continue; \
-	fi
-	@mkdir -p $(PATCHES_DIR)/{features,content,scripts,.continue}
-	@if [ ! -f "$(PATCHES_DIR)/.continue/config.json" ]; then \
-		export ANTHROPIC_API_KEY=$(ANTHROPIC_API_KEY) && \
-		envsubst < $(PATCHES_DIR)/.continue/config.json.template > $(PATCHES_DIR)/.continue/config.json; \
-		echo "✅ Continue CLI configured"; \
+# Include local customizations if present (not in git)
+-include Makefile.local
+
+# Basic Variables
+DOCKER_COMPOSE = docker-compose
+
+UID := $(shell id -u)
+GID := $(shell id -g)
+
+# Start the services in detached mode
+start:
+	UID=$(UID) GID=$(GID) $(DOCKER_COMPOSE) up -d --build --remove-orphans
+
+# Stop the services
+stop:
+	$(DOCKER_COMPOSE) down
+
+# Restart the services
+restart:
+	@if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
+		echo "Usage: make restart <service_name>"; exit 2; \
 	else \
-		echo "ℹ️  Continue already configured"; \
-	fi
-	@echo ""
-	@echo "📝 Add your features to: $(PATCHES_DIR)/features/"
-	@echo "💾 Add content files to: $(PATCHES_DIR)/content/"
-	@echo ""
+		$(DOCKER_COMPOSE) restart $(word 2, $(MAKECMDGOALS)); \
+	fi;
 
-analyze-patches: ## Analyze what patches would do (dry-run)
-	@echo "📊 Analyzing patches..."
-	@bash $(PATCHES_DIR)/scripts/apply-patches.sh analyze
+# Remove all containers and networks
+delete:
+	$(DOCKER_COMPOSE) down --volumes
 
-apply-patches: ## Apply all patches intelligently using AI
-	@echo "🚀 Applying patches..."
-	@bash $(PATCHES_DIR)/scripts/apply-patches.sh apply
-
-validate-patches: ## Validate applied patches
-	@echo "🧪 Validating patches..."
-	@bash $(PATCHES_DIR)/scripts/apply-patches.sh validate
-
-patch-diff: ## Show diff of applied patches
-	@if [ -f "$(PATCHES_DIR)/applied.patch" ]; then \
-		echo "📝 Applied patches diff:"; \
-		echo ""; \
-		cat $(PATCHES_DIR)/applied.patch; \
+# Show logs for a specified service
+logs:
+	@if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
+		echo "Usage: make logs <container_name>"; exit 2; \
 	else \
-		echo "ℹ️  No patches applied yet. Run 'make apply-patches' first."; \
-	fi
+		$(DOCKER_COMPOSE) logs --tail=100 -f $(word 2, $(MAKECMDGOALS)); \
+	fi;
 
-patch-clean: ## Clean temporary patch files
-	@bash $(PATCHES_DIR)/scripts/apply-patches.sh clean
+# Validate environment and configuration
+env:
+	$(DOCKER_COMPOSE) config
 
-patch-status: ## Show patch system status
-	@echo "📊 Patch System Status"
-	@echo "====================="
-	@echo ""
-	@echo "Continue CLI: $$(command -v continue &> /dev/null && echo '✅ Installed' || echo '❌ Not installed')"
-	@echo "Config: $$([ -f '$(PATCHES_DIR)/.continue/config.json' ] && echo '✅ Configured' || echo '❌ Missing')"
-	@echo ""
-	@echo "Features:"
-	@ls -1 $(PATCHES_DIR)/features/*.yaml 2>/dev/null | sed 's|.*/||; s/\.yaml//' | sed 's/^/  • /' || echo "  (none)"
-	@echo ""
-	@echo "Last applied: $$([ -f '$(PATCHES_DIR)/applied.patch' ] && stat -f '%Sm' -t '%Y-%m-%d %H:%M' $(PATCHES_DIR)/applied.patch 2>/dev/null || stat -c '%y' $(PATCHES_DIR)/applied.patch 2>/dev/null | cut -d' ' -f1-2 || echo 'never')"
-	@echo ""
+# Run a shell in a specified container
+shell:
+	@container_name=$(name); \
+	if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
+		echo "Usage: make shell <container_name>"; exit 2; \
+	else \
+		$(DOCKER_COMPOSE) exec $(word 2, $(MAKECMDGOALS)) sh -c 'bash || sh' \
+	fi;
 
-patch-help: ## Show detailed patch system help
-	@echo ""
-	@echo "🔧 Intelligent Patch System"
-	@echo "============================"
-	@echo ""
-	@echo "The patch system uses Continue CLI + Anthropic Claude Sonnet"
-	@echo "to intelligently apply modifications to Open WebUI."
-	@echo ""
-	@echo "📚 Quick Start:"
-	@echo "  1. make setup-continue       - Setup Continue CLI"
-	@echo "  2. make analyze-patches      - See what will change"
-	@echo "  3. make apply-patches        - Apply all patches"
-	@echo "  4. docker-compose restart    - Restart with patches"
-	@echo ""
-	@echo "🔍 Available Commands:"
-	@echo "  make setup-continue          - Setup Continue CLI and config"
-	@echo "  make analyze-patches         - Analyze patches (dry-run)"
-	@echo "  make apply-patches           - Apply all patches with AI"
-	@echo "  make validate-patches        - Run validation checks"
-	@echo "  make patch-diff              - Show unified diff"
-	@echo "  make patch-clean             - Clean temporary files"
-	@echo "  make patch-status            - Show system status"
-	@echo "  make patch-help              - This help message"
-	@echo ""
-	@echo "📖 Documentation:"
-	@echo "  See Agents.md for detailed architecture and development guide"
-	@echo ""
+# Grant necessary permissions to the certificate folder and files for HTTP access
+set-permissions:
+	@docker-compose exec caddy chmod -R a+r /data/caddy/pki/authorities/local
 
-# Update help to include patch commands
-help: ## Show this help message
-	@echo ""
-	@echo "📦 Selfhosted AI Hub - Available Commands"
-	@echo "=========================================="
-	@echo ""
-	@echo "🚀 Service Management:"
-	@echo "  make start              - Start all services"
-	@echo "  make stop               - Stop all services"
-	@echo "  make restart <service>  - Restart specific service"
+# Update all Docker images and restart services
+update-all:
+	$(DOCKER_COMPOSE) pull
+	$(MAKE) start
+
+# --- Open WebUI update/diff helpers ---
+
+# Image and paths
+OPENWEBUI_IMAGE ?= ghcr.io/open-webui/open-webui:main
+OPENWEBUI_TMP_CTR ?= owui-tmp
+OPENWEBUI_TMP_DIR ?= ./.tmp/openwebui-new
+SUDO ?= sudo
+OPENWEBUI_FRONTEND_DIR ?= ./etc/open-webui/build
+OPENWEBUI_STATIC_DIR   ?= ./etc/open-webui/backend/static
+
+# Internal helper: extract assets from the image into a temp dir
+# - Detects /app/build or /app/frontend/dist as the frontend build source
+# - Always extracts /app/backend/static to tmp static dir
+define _extract_openwebui_assets
+	@set -e; \
+	echo "[info] Pulling image $(OPENWEBUI_IMAGE)"; \
+	docker pull $(OPENWEBUI_IMAGE) >/dev/null; \
+	echo "[info] Creating temp container $(OPENWEBUI_TMP_CTR)"; \
+	docker rm -f $(OPENWEBUI_TMP_CTR) >/dev/null 2>&1 || true; \
+	docker create --name $(OPENWEBUI_TMP_CTR) $(OPENWEBUI_IMAGE) >/dev/null; \
+	echo "[info] Preparing temp dir $(OPENWEBUI_TMP_DIR)"; \
+	mkdir -p $(OPENWEBUI_TMP_DIR)/frontend $(OPENWEBUI_TMP_DIR)/static; \
+	# Try copy /app/build first, then /app/frontend/dist — works even if container is stopped
+	if docker cp $(OPENWEBUI_TMP_CTR):/app/build/. $(OPENWEBUI_TMP_DIR)/frontend/ >/dev/null 2>&1; then \
+		echo "[info] Using frontend source: /app/build"; \
+	elif docker cp $(OPENWEBUI_TMP_CTR):/app/frontend/dist/. $(OPENWEBUI_TMP_DIR)/frontend/ >/dev/null 2>&1; then \
+		echo "[info] Using frontend source: /app/frontend/dist"; \
+	else \
+		echo "[error] Could not find frontend build (looked at /app/build and /app/frontend/dist)"; \
+		echo "        Please inspect the container paths manually."; \
+		docker rm -f $(OPENWEBUI_TMP_CTR) >/dev/null 2>&1 || true; \
+		exit 2; \
+	fi; \
+	# Static files (optional)
+	if docker cp $(OPENWEBUI_TMP_CTR):/app/backend/open_webui/static/. $(OPENWEBUI_TMP_DIR)/static/ >/dev/null 2>&1; then \
+		echo "[info] Copied static from /app/backend/open_webui/static"; \
+	else \
+		echo "[warn] /app/backend/open_webui/static not found in image; continuing without static assets"; \
+	fi; \
+	docker rm -f $(OPENWEBUI_TMP_CTR) >/dev/null 2>&1 || true; \
+	echo "[info] Assets extracted to $(OPENWEBUI_TMP_DIR)"
+endef
+
+# Show what would change (no file modifications)
+check-webui-diff:
+	@echo "[info] Checking diff between image assets and $(OPENWEBUI_FRONTEND_DIR)"
+	$(call _extract_openwebui_assets)
+	@set -e; \
+	echo "[info] Comparing FRONTEND (dry-run)"; \
+	mkdir -p $(OPENWEBUI_FRONTEND_DIR) $(OPENWEBUI_STATIC_DIR); \
+	if command -v rsync >/dev/null 2>&1; then \
+		rsync -a --delete --dry-run "$(OPENWEBUI_TMP_DIR)/frontend/" "$(OPENWEBUI_FRONTEND_DIR)/" | sed 's/^/[rsync] /'; \
+		echo "[info] Comparing STATIC (dry-run)"; \
+		rsync -a --delete --dry-run "$(OPENWEBUI_TMP_DIR)/static/" "$(OPENWEBUI_STATIC_DIR)/" | sed 's/^/[rsync] /'; \
+	else \
+		echo "[warn] rsync not found; falling back to diff -qr"; \
+		diff -qr "$(OPENWEBUI_TMP_DIR)/frontend" "$(OPENWEBUI_FRONTEND_DIR)" || true; \
+		diff -qr "$(OPENWEBUI_TMP_DIR)/static" "$(OPENWEBUI_STATIC_DIR)" || true; \
+	fi; \
+	echo "[info] Done. Review the lines above for additions/deletions."
+
+# Apply the update (synchronize files; removes files not in image)
+update-webui:
+	@echo "[info] Updating $(OPENWEBUI_FRONTEND_DIR) and $(OPENWEBUI_STATIC_DIR) from image"
+	$(call _extract_openwebui_assets)
+	@set -e; \
+	$(SUDO) mkdir -p "$(OPENWEBUI_FRONTEND_DIR)" "$(OPENWEBUI_STATIC_DIR)"; \
+	if command -v rsync >/dev/null 2>&1; then \
+		$(SUDO) rsync -a --delete "$(OPENWEBUI_TMP_DIR)/frontend/" "$(OPENWEBUI_FRONTEND_DIR)/"; \
+		$(SUDO) rsync -a --delete "$(OPENWEBUI_TMP_DIR)/static/"   "$(OPENWEBUI_STATIC_DIR)/"; \
+	else \
+		(cd "$(OPENWEBUI_TMP_DIR)/frontend" && tar cf - .) | $(SUDO) tar xpf - -C "$(OPENWEBUI_FRONTEND_DIR)"; \
+		(cd "$(OPENWEBUI_TMP_DIR)/static"   && tar cf - .) | $(SUDO) tar xpf - -C "$(OPENWEBUI_STATIC_DIR)"; \
+	fi; \
+	echo "[info] Update complete."
+
+# Prevent Make from treating extra arguments as separate targets
+%:
+	@:
+
+# Help target to display available commands
+help:
+	@echo "Available Make commands:"
+	@echo "  make start              - Start the services in detached mode"
+	@echo "  make stop               - Stop the services"
+	@echo "  make restart            - Restart the services"
 	@echo "  make delete             - Remove all containers and networks"
-	@echo ""
-	@echo "🔍 Monitoring:"
-	@echo "  make logs <service>     - Show logs"
-	@echo "  make shell <container>  - Open shell"
-	@echo "  make env                - Validate config"
-	@echo ""
-	@echo "🔧 Intelligent Patching:"
-	@echo "  make setup-continue     - Setup patch system"
-	@echo "  make analyze-patches    - Analyze patches (dry-run)"
-	@echo "  make apply-patches      - Apply patches with AI"
-	@echo "  make validate-patches   - Validate patches"
-	@echo "  make patch-help         - Patch system help"
-	@echo ""
-	@echo "🧪 Testing:"
-	@echo "  make test-websocket     - Test WebSocket"
-	@echo "  make patch-status       - Patch system status"
-	@echo ""
-	@echo "📚 For more info: make patch-help"
-	@echo ""
+	@echo "  make logs               - Show logs for a specified service"	
+	@echo "  make shell              - Run a shell in a specified container"
+	@echo "  make set-permissions    - Grant necessary permissions for certs access"
+	@echo "  make env                - Validate the environment/configuration"
+	@echo "  make update-all         - Update all Docker images and restart services"
+	@echo "  make check-webui-diff   - Preview changes between image assets and local frontend/static (dry-run)"
+	@echo "  make update-webui       - Sync local frontend/static from the latest image assets (apply changes)"
+
