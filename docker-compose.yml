@@ -1,22 +1,16 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: selfhosted-ai-hub-ollama-1
+    container_name: ollama
     restart: unless-stopped
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    #deploy:
-    #  resources:
-    #    reservations:
-    #      devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
 
   caddy:
     image: caddy:2.7
+    container_name: caddy
     restart: unless-stopped
     volumes:
       - ./etc/caddy/Caddyfile:/etc/caddy/Caddyfile
@@ -35,6 +29,7 @@ services:
 
   postgres:
     image: postgres:16
+    container_name: postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -47,6 +42,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:latest
+    container_name: qdrant
     restart: unless-stopped
     ports:
       - "6333:6333"
@@ -55,6 +51,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    container_name: minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -63,9 +60,9 @@ services:
     volumes:
       - minio_data:/data
 
-  # One-shot job: copies image assets -> host folders if empty.
   seed-openwebui-assets:
     image: ghcr.io/open-webui/open-webui:main
+    container_name: seed-openwebui-assets
     user: "0:0"
     restart: "no"
     command: |
@@ -122,7 +119,7 @@ services:
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
-    container_name: open-webui
+    container_name: openwebui
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -135,7 +132,6 @@ services:
     volumes:
       - ./etc/open-webui/build:/app/build
       - ./etc/open-webui/backend/static:/app/backend/static
-      - ./etc/open-webui/backend/open_webui:/app/backend/open_webui
       - ./etc/open-webui/data:/app/backend/data
     depends_on:
       seed-openwebui-assets:
@@ -143,6 +139,7 @@ services:
 
   pipelines:
     image: ghcr.io/open-webui/pipelines:main
+    container_name: pipelines
     restart: unless-stopped
     ports:
       - "9099:9099"
@@ -154,6 +151,7 @@ services:
 
   n8n:
     image: n8nio/n8n:latest
+    container_name: n8n
     restart: unless-stopped
     environment:
       N8N_DB_TYPE: ${N8N_DB_TYPE}
@@ -186,6 +184,7 @@ services:
 
   litellm:
     image: litellm/litellm:latest
+    container_name: litellm
     restart: unless-stopped
     volumes:
       - ./etc/litellm/config.yaml:/etc/litellm/config.yaml:ro
@@ -196,6 +195,7 @@ services:
 
   redis:
     image: redis:latest
+    container_name: redis
     restart: unless-stopped
     ports:
       - "6379:6379"
