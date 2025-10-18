@@ -5,7 +5,7 @@ Thumbs.db
 .vscode/
 src/*
 docker-compose.override.yml
-etc/open-webui/patches/*
+etc/patches/*
 etc/open-webui/Dockerfile
 AGENTS.md
 CUSTOM_FEATURES.md

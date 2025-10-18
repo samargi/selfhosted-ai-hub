@@ -1,220 +1,122 @@
-.DEFAULT_GOAL := help
+# ============================================
+# Intelligent Patch System
+# ============================================
 
-# Makefile for managing Docker Compose services
+# Environment
+ANTHROPIC_API_KEY ?= $(shell grep ANTHROPIC_API_KEY .env 2>/dev/null | cut -d '=' -f2 | tr -d ' ')
+PATCHES_DIR = ./etc/patches
 
-# Basic Variables
-DOCKER_COMPOSE = docker-compose
-
-UID := $(shell id -u)
-GID := $(shell id -g)
-
-# Start the services in detached mode
-start:
-	UID=$(UID) GID=$(GID) $(DOCKER_COMPOSE) up -d --build --remove-orphans
-
-# Stop the services
-stop:
-	$(DOCKER_COMPOSE) down
-
-# Restart the services
-restart:
-	@if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
-		echo "Usage: make restart <service_name>"; exit 2; \
+setup-continue: ## Setup Continue CLI and patch system
+	@echo "🔧 Setting up Continue CLI..."
+	@if ! command -v continue &> /dev/null; then \
+		echo "Installing Continue CLI..."; \
+		npm install -g continue; \
+	fi
+	@mkdir -p $(PATCHES_DIR)/{features,content,scripts,.continue}
+	@if [ ! -f "$(PATCHES_DIR)/.continue/config.json" ]; then \
+		export ANTHROPIC_API_KEY=$(ANTHROPIC_API_KEY) && \
+		envsubst < $(PATCHES_DIR)/.continue/config.json.template > $(PATCHES_DIR)/.continue/config.json; \
+		echo "✅ Continue CLI configured"; \
 	else \
-		$(DOCKER_COMPOSE) restart $(word 2, $(MAKECMDGOALS)); \
-	fi;
+		echo "ℹ️  Continue already configured"; \
+	fi
+	@echo ""
+	@echo "📝 Add your features to: $(PATCHES_DIR)/features/"
+	@echo "💾 Add content files to: $(PATCHES_DIR)/content/"
+	@echo ""
 
-# Remove all containers and networks
-delete:
-	$(DOCKER_COMPOSE) down --volumes
+analyze-patches: ## Analyze what patches would do (dry-run)
+	@echo "📊 Analyzing patches..."
+	@bash $(PATCHES_DIR)/scripts/apply-patches.sh analyze
 
-# Show logs for a specified service
-logs:
-	@if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
-		echo "Usage: make logs <container_name>"; exit 2; \
+apply-patches: ## Apply all patches intelligently using AI
+	@echo "🚀 Applying patches..."
+	@bash $(PATCHES_DIR)/scripts/apply-patches.sh apply
+
+validate-patches: ## Validate applied patches
+	@echo "🧪 Validating patches..."
+	@bash $(PATCHES_DIR)/scripts/apply-patches.sh validate
+
+patch-diff: ## Show diff of applied patches
+	@if [ -f "$(PATCHES_DIR)/applied.patch" ]; then \
+		echo "📝 Applied patches diff:"; \
+		echo ""; \
+		cat $(PATCHES_DIR)/applied.patch; \
 	else \
-		$(DOCKER_COMPOSE) logs --tail=100 -f $(word 2, $(MAKECMDGOALS)); \
-	fi;
-
-# Validate environment and configuration
-env:
-	$(DOCKER_COMPOSE) config
-
-# Run a shell in a specified container
-shell:
-	@container_name=$(name); \
-	if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
-		echo "Usage: make shell <container_name>"; exit 2; \
-	else \
-		$(DOCKER_COMPOSE) exec $(word 2, $(MAKECMDGOALS)) sh -c 'bash || sh' \
-	fi;
-
-# Grant necessary permissions to the certificate folder and files for HTTP access
-set-permissions:
-	@docker-compose exec caddy chmod -R a+r /data/caddy/pki/authorities/local
-
-# Update all Docker images and restart services
-update-all:
-	$(DOCKER_COMPOSE) pull
-	$(MAKE) start
-
-# --- Open WebUI Custom Build ---
-
-# Build custom Open WebUI image (if custom features enabled)
-build-webui:
-	@echo "🔨 Building custom Open WebUI image..."
-	@if [ -f "./etc/open-webui/Dockerfile" ]; then \
-		$(DOCKER_COMPOSE) build open-webui; \
-		echo "✅ Custom Open WebUI built successfully"; \
-	else \
-		echo "ℹ️  No custom Dockerfile found - using official image"; \
-		echo "   See Agents.md for custom features setup"; \
+		echo "ℹ️  No patches applied yet. Run 'make apply-patches' first."; \
 	fi
 
-# Rebuild Open WebUI with latest base image (no cache)
-rebuild-webui:
-	@echo "🔄 Rebuilding custom Open WebUI with latest base..."
-	@if [ -f "./etc/open-webui/Dockerfile" ]; then \
-		$(DOCKER_COMPOSE) pull open-webui 2>/dev/null || true; \
-		$(DOCKER_COMPOSE) build --no-cache --pull open-webui; \
-		$(DOCKER_COMPOSE) up -d open-webui; \
-		echo "✅ Open WebUI rebuilt and restarted"; \
-	else \
-		echo "ℹ️  No custom Dockerfile found - pulling official image"; \
-		$(DOCKER_COMPOSE) pull open-webui; \
-		$(DOCKER_COMPOSE) up -d open-webui; \
-	fi
+patch-clean: ## Clean temporary patch files
+	@bash $(PATCHES_DIR)/scripts/apply-patches.sh clean
 
-# Show Open WebUI build logs
-logs-webui-build:
-	@echo "📋 Open WebUI build logs:"
-	@$(DOCKER_COMPOSE) logs open-webui | grep -E "(patch|build|error|warning)" || echo "No build logs found"
+patch-status: ## Show patch system status
+	@echo "📊 Patch System Status"
+	@echo "====================="
+	@echo ""
+	@echo "Continue CLI: $$(command -v continue &> /dev/null && echo '✅ Installed' || echo '❌ Not installed')"
+	@echo "Config: $$([ -f '$(PATCHES_DIR)/.continue/config.json' ] && echo '✅ Configured' || echo '❌ Missing')"
+	@echo ""
+	@echo "Features:"
+	@ls -1 $(PATCHES_DIR)/features/*.yaml 2>/dev/null | sed 's|.*/||; s/\.yaml//' | sed 's/^/  • /' || echo "  (none)"
+	@echo ""
+	@echo "Last applied: $$([ -f '$(PATCHES_DIR)/applied.patch' ] && stat -f '%Sm' -t '%Y-%m-%d %H:%M' $(PATCHES_DIR)/applied.patch 2>/dev/null || stat -c '%y' $(PATCHES_DIR)/applied.patch 2>/dev/null | cut -d' ' -f1-2 || echo 'never')"
+	@echo ""
 
-# Test WebSocket connection (for custom features)
-test-websocket:
-	@echo "🔌 Testing WebSocket connection..."
-	@curl -s -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
-		-H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: test" \
-		https://localhost/health 2>&1 | head -n 5 || echo "❌ WebSocket test failed"
+patch-help: ## Show detailed patch system help
+	@echo ""
+	@echo "🔧 Intelligent Patch System"
+	@echo "============================"
+	@echo ""
+	@echo "The patch system uses Continue CLI + Anthropic Claude Sonnet"
+	@echo "to intelligently apply modifications to Open WebUI."
+	@echo ""
+	@echo "📚 Quick Start:"
+	@echo "  1. make setup-continue       - Setup Continue CLI"
+	@echo "  2. make analyze-patches      - See what will change"
+	@echo "  3. make apply-patches        - Apply all patches"
+	@echo "  4. docker-compose restart    - Restart with patches"
+	@echo ""
+	@echo "🔍 Available Commands:"
+	@echo "  make setup-continue          - Setup Continue CLI and config"
+	@echo "  make analyze-patches         - Analyze patches (dry-run)"
+	@echo "  make apply-patches           - Apply all patches with AI"
+	@echo "  make validate-patches        - Run validation checks"
+	@echo "  make patch-diff              - Show unified diff"
+	@echo "  make patch-clean             - Clean temporary files"
+	@echo "  make patch-status            - Show system status"
+	@echo "  make patch-help              - This help message"
+	@echo ""
+	@echo "📖 Documentation:"
+	@echo "  See Agents.md for detailed architecture and development guide"
+	@echo ""
 
-# Check custom Open WebUI version
-check-webui-version:
-	@echo "📦 Open WebUI image info:"
-	@docker images | grep "open-webui" | head -n 3
-
-# Clean Open WebUI build cache
-clean-webui-cache:
-	@echo "🧹 Cleaning Open WebUI build cache..."
-	@docker builder prune -f
-	@echo "✅ Build cache cleaned"
-
-# --- Open WebUI update/diff helpers ---
-
-# Image and paths
-OPENWEBUI_IMAGE ?= ghcr.io/open-webui/open-webui:main
-OPENWEBUI_TMP_CTR ?= owui-tmp
-OPENWEBUI_TMP_DIR ?= ./.tmp/openwebui-new
-SUDO ?= sudo
-OPENWEBUI_FRONTEND_DIR ?= ./etc/open-webui/build
-OPENWEBUI_STATIC_DIR   ?= ./etc/open-webui/backend/static
-
-# Internal helper: extract assets from the image into a temp dir
-define _extract_openwebui_assets
-	@set -e; \
-	echo "[info] Pulling image $(OPENWEBUI_IMAGE)"; \
-	docker pull $(OPENWEBUI_IMAGE) >/dev/null; \
-	echo "[info] Creating temp container $(OPENWEBUI_TMP_CTR)"; \
-	docker rm -f $(OPENWEBUI_TMP_CTR) >/dev/null 2>&1 || true; \
-	docker create --name $(OPENWEBUI_TMP_CTR) $(OPENWEBUI_IMAGE) >/dev/null; \
-	echo "[info] Preparing temp dir $(OPENWEBUI_TMP_DIR)"; \
-	mkdir -p $(OPENWEBUI_TMP_DIR)/frontend $(OPENWEBUI_TMP_DIR)/static; \
-	if docker cp $(OPENWEBUI_TMP_CTR):/app/build/. $(OPENWEBUI_TMP_DIR)/frontend/ >/dev/null 2>&1; then \
-		echo "[info] Using frontend source: /app/build"; \
-	elif docker cp $(OPENWEBUI_TMP_CTR):/app/frontend/dist/. $(OPENWEBUI_TMP_DIR)/frontend/ >/dev/null 2>&1; then \
-		echo "[info] Using frontend source: /app/frontend/dist"; \
-	else \
-		echo "[error] Could not find frontend build"; \
-		docker rm -f $(OPENWEBUI_TMP_CTR) >/dev/null 2>&1 || true; \
-		exit 2; \
-	fi; \
-	if docker cp $(OPENWEBUI_TMP_CTR):/app/backend/open_webui/static/. $(OPENWEBUI_TMP_DIR)/static/ >/dev/null 2>&1; then \
-		echo "[info] Copied static from /app/backend/open_webui/static"; \
-	else \
-		echo "[warn] /app/backend/open_webui/static not found"; \
-	fi; \
-	docker rm -f $(OPENWEBUI_TMP_CTR) >/dev/null 2>&1 || true; \
-	echo "[info] Assets extracted to $(OPENWEBUI_TMP_DIR)"
-endef
-
-# Show what would change (no file modifications)
-check-webui-diff:
-	@echo "[info] Checking diff between image assets and $(OPENWEBUI_FRONTEND_DIR)"
-	$(call _extract_openwebui_assets)
-	@set -e; \
-	echo "[info] Comparing FRONTEND (dry-run)"; \
-	mkdir -p $(OPENWEBUI_FRONTEND_DIR) $(OPENWEBUI_STATIC_DIR); \
-	if command -v rsync >/dev/null 2>&1; then \
-		rsync -a --delete --dry-run "$(OPENWEBUI_TMP_DIR)/frontend/" "$(OPENWEBUI_FRONTEND_DIR)/" | sed 's/^/[rsync] /'; \
-		echo "[info] Comparing STATIC (dry-run)"; \
-		rsync -a --delete --dry-run "$(OPENWEBUI_TMP_DIR)/static/" "$(OPENWEBUI_STATIC_DIR)/" | sed 's/^/[rsync] /'; \
-	else \
-		echo "[warn] rsync not found; falling back to diff -qr"; \
-		diff -qr "$(OPENWEBUI_TMP_DIR)/frontend" "$(OPENWEBUI_FRONTEND_DIR)" || true; \
-		diff -qr "$(OPENWEBUI_TMP_DIR)/static" "$(OPENWEBUI_STATIC_DIR)" || true; \
-	fi; \
-	echo "[info] Done. Review the lines above for additions/deletions."
-
-# Apply the update (synchronize files; removes files not in image)
-update-webui:
-	@echo "[info] Updating $(OPENWEBUI_FRONTEND_DIR) and $(OPENWEBUI_STATIC_DIR) from image"
-	$(call _extract_openwebui_assets)
-	@set -e; \
-	$(SUDO) mkdir -p "$(OPENWEBUI_FRONTEND_DIR)" "$(OPENWEBUI_STATIC_DIR)"; \
-	if command -v rsync >/dev/null 2>&1; then \
-		$(SUDO) rsync -a --delete "$(OPENWEBUI_TMP_DIR)/frontend/" "$(OPENWEBUI_FRONTEND_DIR)/"; \
-		$(SUDO) rsync -a --delete "$(OPENWEBUI_TMP_DIR)/static/"   "$(OPENWEBUI_STATIC_DIR)/"; \
-	else \
-		(cd "$(OPENWEBUI_TMP_DIR)/frontend" && tar cf - .) | $(SUDO) tar xpf - -C "$(OPENWEBUI_FRONTEND_DIR)"; \
-		(cd "$(OPENWEBUI_TMP_DIR)/static"   && tar cf - .) | $(SUDO) tar xpf - -C "$(OPENWEBUI_STATIC_DIR)"; \
-	fi; \
-	echo "[info] Update complete."
-
-# Prevent Make from treating extra arguments as separate targets
-%:
-	@:
-
-# Help target to display available commands
-help:
+# Update help to include patch commands
+help: ## Show this help message
 	@echo ""
 	@echo "📦 Selfhosted AI Hub - Available Commands"
 	@echo "=========================================="
 	@echo ""
 	@echo "🚀 Service Management:"
-	@echo "  make start              - Start all services in detached mode"
+	@echo "  make start              - Start all services"
 	@echo "  make stop               - Stop all services"
 	@echo "  make restart <service>  - Restart specific service"
 	@echo "  make delete             - Remove all containers and networks"
-	@echo "  make update-all         - Update all Docker images and restart"
 	@echo ""
-	@echo "🔍 Monitoring & Debugging:"
-	@echo "  make logs <service>     - Show logs for specific service"
-	@echo "  make shell <container>  - Open shell in container"
-	@echo "  make env                - Validate Docker Compose config"
+	@echo "🔍 Monitoring:"
+	@echo "  make logs <service>     - Show logs"
+	@echo "  make shell <container>  - Open shell"
+	@echo "  make env                - Validate config"
 	@echo ""
-	@echo "🔧 Open WebUI Management:"
-	@echo "  make build-webui        - Build custom Open WebUI image (if enabled)"
-	@echo "  make rebuild-webui      - Rebuild with latest base (no cache)"
-	@echo "  make check-webui-diff   - Preview Open WebUI updates (dry-run)"
-	@echo "  make update-webui       - Sync Open WebUI assets from latest image"
-	@echo "  make logs-webui-build   - Show Open WebUI build logs"
-	@echo "  make check-webui-version - Show Open WebUI image version"
+	@echo "🔧 Intelligent Patching:"
+	@echo "  make setup-continue     - Setup patch system"
+	@echo "  make analyze-patches    - Analyze patches (dry-run)"
+	@echo "  make apply-patches      - Apply patches with AI"
+	@echo "  make validate-patches   - Validate patches"
+	@echo "  make patch-help         - Patch system help"
 	@echo ""
-	@echo "🧪 Testing & Utilities:"
-	@echo "  make test-websocket     - Test WebSocket connection"
-	@echo "  make clean-webui-cache  - Clean Docker build cache"
-	@echo "  make set-permissions    - Grant permissions for certificates"
+	@echo "🧪 Testing:"
+	@echo "  make test-websocket     - Test WebSocket"
+	@echo "  make patch-status       - Patch system status"
 	@echo ""
-	@echo "📚 Documentation:"
-	@echo "  See README.md for general setup"
-	@echo "  See Agents.md for custom features and architecture"
+	@echo "📚 For more info: make patch-help"
 	@echo ""
