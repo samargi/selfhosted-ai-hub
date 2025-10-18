@@ -4,6 +4,7 @@ Thumbs.db
 .idea/
 .vscode/
 src/*
+docker-compose.override.yml
 
 # Python
 __pycache__/

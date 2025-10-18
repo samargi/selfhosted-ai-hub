@@ -7,13 +7,14 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-             - driver: nvidia
-               count: 1
-               capabilities: [gpu]
+    #deploy:
+    #  resources:
+    #    reservations:
+    #      devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
   caddy:
     image: caddy:2.7
     restart: unless-stopped
@@ -24,8 +25,8 @@ services:
     ports:
       - "443:443"
     environment:
-      - DOMAIN: ${DOMAIN}
-      - N8N_HOST: ${N8N_HOST}
+      DOMAIN: ${DOMAIN}
+      N8N_HOST: ${N8N_HOST}
     depends_on:
       - openwebui
       - n8n
