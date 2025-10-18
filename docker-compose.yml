@@ -1,9 +1,24 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: selfhosted-ai-hub-ollama-1
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+             - driver: nvidia
+               count: 1
+               capabilities: [gpu]
   caddy:
     image: caddy:2.7
     restart: unless-stopped
     volumes:
-      - ./etc/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./etc/caddy/Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
     ports:
@@ -95,9 +110,11 @@ services:
     ports:
       - "8080:8080"
     environment:
-      FRONTEND_BUILD_DIR: /app/build
-      STATIC_DIR: /app/backend/static
-      DATA_DIR: /app/backend/data
+      FRONTEND_BUILD_DIR=${FRONTEND_BUILD_DIR}
+      STATIC_DIR=${STATIC_DIR}
+      DATA_DIR=${DATA_DIR}
+      PIPELINES_URLS=${PIPELINES_URLS}
+      ENABLE_OPENAI_API=${ENABLE_OPENAI_API}
     volumes:
       - ./etc/open-webui/build:/app/build
       - ./etc/open-webui/backend/static:/app/backend/static
@@ -120,27 +137,27 @@ services:
     image: n8nio/n8n:latest
     restart: unless-stopped
     environment:
-      N8N_DB_TYPE: ${N8N_DB_TYPE}
-      N8N_DB_POSTGRESDB_HOST: ${N8N_DB_POSTGRESDB_HOST}
-      N8N_DB_POSTGRESDB_PORT: ${N8N_DB_POSTGRESDB_PORT}
-      N8N_DB_POSTGRESDB_DATABASE: ${N8N_DB_POSTGRESDB_DATABASE}
-      N8N_DB_POSTGRESDB_USER: ${N8N_DB_POSTGRESDB_USER}
-      N8N_DB_POSTGRESDB_PASSWORD: ${N8N_DB_POSTGRESDB_USER}
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
-      N8N_HOST: ${N8N_HOST}
-      N8N_PORT: ${N8N_PORT}
-      N8N_PROTOCOL: ${N8N_PROTOCOL}
-      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL}
-      WEBHOOK_URL: ${N8N_EDITOR_BASE_URL}
-      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE}
-      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
-      N8N_PROXY_HOPS: ${N8N_PROXY_HOPS}
-      N8N_TRUSTED_PROXIES: ${N8N_TRUSTED_PROXIES}
-      N8N_RUNNERS_ENABLED: ${N8N_RUNNERS_ENABLED}
-      N8N_BLOCK_ENV_ACCESS_IN_NODE: ${N8N_BLOCK_ENV_ACCESS_IN_NODE}
-      N8N_USER_MANAGEMENT_DISABLED: ${N8N_USER_MANAGEMENT_DISABLED}
-      N8N_USER_MANAGEMENT_EMAIL: ${N8N_USER_MANAGEMENT_EMAIL}
-      N8N_USER_MANAGEMENT_PASSWORD: ${N8N_USER_MANAGEMENT_PASSWORD}
+      N8N_DB_TYPE=${N8N_DB_TYPE}
+      N8N_DB_POSTGRESDB_HOST=${N8N_DB_POSTGRESDB_HOST}
+      N8N_DB_POSTGRESDB_PORT=${N8N_DB_POSTGRESDB_PORT}
+      N8N_DB_POSTGRESDB_DATABASE=${N8N_DB_POSTGRESDB_DATABASE}
+      N8N_DB_POSTGRESDB_USER=${N8N_DB_POSTGRESDB_USER}
+      N8N_DB_POSTGRESDB_PASSWORD=${N8N_DB_POSTGRESDB_USER}
+      N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      N8N_HOST=${N8N_HOST}
+      N8N_PORT=${N8N_PORT}
+      N8N_PROTOCOL=${N8N_PROTOCOL}
+      N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
+      WEBHOOK_URL=${N8N_EDITOR_BASE_URL}
+      N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
+      GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      N8N_PROXY_HOPS=${N8N_PROXY_HOPS}
+      N8N_TRUSTED_PROXIES=${N8N_TRUSTED_PROXIES}
+      N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE=${N8N_BLOCK_ENV_ACCESS_IN_NODE}
+      N8N_USER_MANAGEMENT_DISABLED=${N8N_USER_MANAGEMENT_DISABLED}
+      N8N_USER_MANAGEMENT_EMAIL=${N8N_USER_MANAGEMENT_EMAIL}
+      N8N_USER_MANAGEMENT_PASSWORD=${N8N_USER_MANAGEMENT_PASSWORD}
     depends_on:
       - postgres
     ports:
@@ -174,4 +191,4 @@ volumes:
   minio_data:
   n8n_data:
   redis_data:
-
+  ollama_data:
