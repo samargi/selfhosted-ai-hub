@@ -143,16 +143,35 @@ update-webui:
 
 # Help target to display available commands
 help:
-	@echo "Available Make commands:"
+	@echo ""
+	@echo "📦 Selfhosted AI Hub - Available Commands"
+	@echo "=========================================="
+	@echo ""
+	@echo "🚀 Service Management:"
 	@echo "  make start              - Start the services in detached mode"
 	@echo "  make stop               - Stop the services"
-	@echo "  make restart            - Restart the services"
+	@echo "  make restart <service>  - Restart specific service"
 	@echo "  make delete             - Remove all containers and networks"
-	@echo "  make logs               - Show logs for a specified service"	
-	@echo "  make shell              - Run a shell in a specified container"
-	@echo "  make set-permissions    - Grant necessary permissions for certs access"
+	@echo ""
+	@echo "🔍 Monitoring:"
+	@echo "  make logs <service>     - Show logs for a specified service"	
+	@echo "  make shell <container>  - Run a shell in a specified container"
 	@echo "  make env                - Validate the environment/configuration"
+	@echo ""
+	@echo "🔄 Updates:"
 	@echo "  make update-all         - Update all Docker images and restart services"
-	@echo "  make check-webui-diff   - Preview changes between image assets and local frontend/static (dry-run)"
-	@echo "  make update-webui       - Sync local frontend/static from the latest image assets (apply changes)"
-
+	@echo "  make check-webui-diff   - Preview Open WebUI updates (dry-run)"
+	@echo "  make update-webui       - Sync Open WebUI assets from latest image"
+	@echo ""
+	@echo "🔧 System:"
+	@echo "  make set-permissions    - Grant necessary permissions for certs access"
+	@echo ""
+	@if [ -f "Makefile.local" ]; then \
+		echo "🎨 Custom Features (Makefile.local):"; \
+		grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile.local | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-20s - %s\n", $$1, $$2}' || true; \
+		echo ""; \
+	else \
+		echo "💡 Custom features available - copy Makefile.local.example to Makefile.local"; \
+		echo ""; \
+	fi
