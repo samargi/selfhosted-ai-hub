@@ -7,6 +7,8 @@ src/*
 package.json
 package-lock.json
 
+# Open WebUI source (cloned from upstream)
+etc/open-webui/src/
 
 # Custom features (private)
 Makefile.local
@@ -78,3 +80,5 @@ etc/open-webui/build/*
 # Functions
 functions/*
 
+etc/open-webui/entrypoint.sh
+etc/open-webui/src
