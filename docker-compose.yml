@@ -1,7 +1,7 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: selfhosted-ai-hub-ollama-1
+    container_name: ollama
     restart: unless-stopped
     ports:
       - "11434:11434"
@@ -17,6 +17,7 @@ services:
 
   caddy:
     image: caddy:2.7
+    container_name: caddy
     restart: unless-stopped
     volumes:
       - ./etc/caddy/Caddyfile:/etc/caddy/Caddyfile
@@ -35,6 +36,7 @@ services:
 
   postgres:
     image: postgres:16
+    container_name: postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -47,6 +49,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:latest
+    container_name: qdrant
     restart: unless-stopped
     ports:
       - "6333:6333"
@@ -55,6 +58,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    container_name: minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -63,71 +67,92 @@ services:
     volumes:
       - minio_data:/data
 
-  # One-shot job: copies image assets -> host folders if empty.
-  seed-openwebui-assets:
-    image: ghcr.io/open-webui/open-webui:main
-    user: "0:0"                 # run seeder as root
-    restart: "no"
-    command: |
-      sh -c '
-      set -eu
-      mkdir -p /host/build /host/backend-static
-
-      if [ -f /app/build/index.html ]; then
-        SRC_FRONT=/app/build
-      elif [ -f /app/frontend/dist/index.html ]; then
-        SRC_FRONT=/app/frontend/dist
-      else
-        echo "[seed][error] Could not locate frontend build (looked at /app/build and /app/frontend/dist)"
-        exit 2
-      fi
-      echo "[seed] Using frontend source: $$SRC_FRONT"
-
-      if [ -z "$$(ls -A /host/build 2>/dev/null || true)" ]; then
-        echo "[seed] Seeding build -> /host/build"
-        cp -a "$$SRC_FRONT/." /host/build/
-      else
-        echo "[seed] /host/build already present, skipping."
-      fi
-
-      if [ -z "$$(ls -A /host/backend-static 2>/dev/null || true)" ]; then
-        if [ -d /app/backend/open_webui/static ]; then
-          echo "[seed] Seeding static -> /host/backend-static"
-          cp -a /app/backend/open_webui/static/. /host/backend-static/
-        else
-          echo "[seed][warn] /app/backend/open_webui/static not found, skipping static."
-        fi
-      else
-        echo "[seed] /host/backend-static already present, skipping."
-      fi
-      '
-    volumes:
-      - ./etc/open-webui/build:/host/build
-      - ./etc/open-webui/backend/static:/host/backend-static
-
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
+      # Paths
       FRONTEND_BUILD_DIR: ${FRONTEND_BUILD_DIR}
       STATIC_DIR: ${STATIC_DIR}
       DATA_DIR: ${DATA_DIR}
-      PIPELINES_URLS: ${PIPELINES_URLS}
+      
+      # Auth & Security
+      WEBUI_AUTH: ${WEBUI_AUTH}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      WEBUI_NAME: ${WEBUI_NAME}
+      
+      # API Keys
+      OPENWEBUI_OPENAI_API_KEY: ${OPENWEBUI_OPENAI_API_KEY}
+      OPENAI_API_BASE_URLS: ${OPENAI_API_BASE_URLS}
+      OPENAI_API_KEYS: ${OPENAI_API_KEYS}
+      
+      # Search
+      ENABLE_WEB_SEARCH: ${ENABLE_WEB_SEARCH}
+      WEB_SEARCH_ENGINE: ${WEB_SEARCH_ENGINE}
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+      
+      # Vector DB
+      VECTOR_DB: ${VECTOR_DB}
+      QDRANT_URI: ${QDRANT_URI}
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      
+      # Features
+      ENABLE_CHANNELS: ${ENABLE_CHANNELS}
+      ENABLE_COMMUNITY_SHARING: ${ENABLE_COMMUNITY_SHARING}
+      ENABLE_FORWARD_USER_INFO_HEADERS: ${ENABLE_FORWARD_USER_INFO_HEADERS}
+      ENABLE_FOLLOW_UP_GENERATION: ${ENABLE_FOLLOW_UP_GENERATION}
+      ENABLE_PERSISTENT_CONFIG: ${ENABLE_PERSISTENT_CONFIG}
       ENABLE_OPENAI_API: ${ENABLE_OPENAI_API}
+      
+      # Models
+      OPENWEBUI_DEFAULT_MODELS_VISIBILITY: ${OPENWEBUI_DEFAULT_MODELS_VISIBILITY}
+      DEFAULT_PROMPT_SUGGESTIONS: ${DEFAULT_PROMPT_SUGGESTIONS}
+      
+      # Pipelines
+      PIPELINES_URLS: ${PIPELINES_URLS}
+      
+      # ============================================
+      # SSE/WebSocket Critical Settings (ADD THESE)
+      # ============================================
+      
+      # Base URL - CRITICAL for SSE/WebSocket
+      WEBUI_URL: ${WEBUI_URL:-http://localhost:8080}
+      
+      # CORS Settings
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-*}
+      
+      # Session Settings (for starsessions)
+      WEBUI_SESSION_COOKIE_SAME_SITE: ${WEBUI_SESSION_COOKIE_SAME_SITE:-lax}
+      WEBUI_SESSION_COOKIE_SECURE: ${WEBUI_SESSION_COOKIE_SECURE:-false}
+      
+      # Logging
+      WEBUI_LOG_LEVEL: ${WEBUI_LOG_LEVEL:-INFO}
+      
+      # SSL Verification (development)
+      ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION: ${ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION:-false}
+      UVICORN_WORKERS: ${UVICORN_WORKERS}
+      ENABLE_WEBSOCKET_SUPPORT: ${ENABLE_WEBSOCKET_SUPPORT}
+      WEBSOCKET_MANAGER: ${WEBSOCKET_MANAGER}
+      WEBSOCKET_REDIS_URL: ${WEBSOCKET_REDIS_URL}
+      REDIS_URL: ${REDIS_URL} 
+      
     volumes:
-      - ./etc/open-webui/build:/app/build
-      - ./etc/open-webui/backend/static:/app/backend/static
       - ./etc/open-webui/data:/app/backend/data
-    depends_on:
-      seed-openwebui-assets:
-        condition: service_completed_successfully
-    container_name: open-webui
-    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   pipelines:
     image: ghcr.io/open-webui/pipelines:main
+    container_name: pipelines
     restart: unless-stopped
     ports:
       - "9099:9099"
@@ -136,9 +161,20 @@ services:
     environment:
       PIPELINES_API_KEY: ${PIPELINES_API_KEY}
       DOMAIN: ${DOMAIN}
+      STAGING_DOMAIN: ${STAGING_DOMAIN}
+      MIN_UPDATES: ${MIN_UPDATES}
+      MAX_UPDATES: ${MAX_UPDATES}
+      MAX_THINK_TOKENS: ${MAX_THINK_TOKENS}
+      MAX_ANSWER_TOKENS: ${MAX_ANSWER_TOKENS}
+      UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL}
+      UPSTREAM_API_KEY: ${UPSTREAM_API_KEY}
+      THINK_MODEL: ${THINK_MODEL}
+      RESP_MODEL: ${RESP_MODEL}
+      PIPELINES_DIR: ${PIPELINES_DIR}
 
   n8n:
     image: n8nio/n8n:latest
+    container_name: n8n
     restart: unless-stopped
     environment:
       N8N_DB_TYPE: ${N8N_DB_TYPE}
@@ -146,13 +182,13 @@ services:
       N8N_DB_POSTGRESDB_PORT: ${N8N_DB_POSTGRESDB_PORT}
       N8N_DB_POSTGRESDB_DATABASE: ${N8N_DB_POSTGRESDB_DATABASE}
       N8N_DB_POSTGRESDB_USER: ${N8N_DB_POSTGRESDB_USER}
-      N8N_DB_POSTGRESDB_PASSWORD: ${N8N_DB_POSTGRESDB_USER}
+      N8N_DB_POSTGRESDB_PASSWORD: ${N8N_DB_POSTGRESDB_PASSWORD}
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
       N8N_HOST: ${N8N_HOST}
       N8N_PORT: ${N8N_PORT}
       N8N_PROTOCOL: ${N8N_PROTOCOL}
       N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL}
-      WEBHOOK_URL: ${N8N_EDITOR_BASE_URL}
+      WEBHOOK_URL: ${WEBHOOK_URL}
       N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE}
       GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
       N8N_PROXY_HOPS: ${N8N_PROXY_HOPS}
@@ -171,16 +207,23 @@ services:
 
   litellm:
     image: litellm/litellm:latest
+    container_name: litellm
     restart: unless-stopped
     volumes:
       - ./etc/litellm/config.yaml:/etc/litellm/config.yaml:ro
     ports:
       - "9090:4000"
+    environment:
+      UI_USERNAME: ${UI_USERNAME}
+      UI_PASSWORD: ${UI_PASSWORD}
+      PROXY_ADMIN_ID: ${PROXY_ADMIN_ID}
+      LITELLM_LOCAL_MODEL_COST_MAP: ${LITELLM_LOCAL_MODEL_COST_MAP}
     command: >
       --config /etc/litellm/config.yaml --detailed_debug
 
   redis:
     image: redis:latest
+    container_name: redis
     restart: unless-stopped
     ports:
       - "6379:6379"

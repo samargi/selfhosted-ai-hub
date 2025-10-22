@@ -13,19 +13,16 @@ GID := $(shell id -g)
 
 # Start the services in detached mode
 start:
-	UID=$(UID) GID=$(GID) $(DOCKER_COMPOSE) up -d --build --remove-orphans
+	UID=$(UID) GID=$(GID) $(DOCKER_COMPOSE) up -d --remove-orphans
 
-# Stop the services
-stop:
-	$(DOCKER_COMPOSE) down
+# Add separate build command
+build:
+	UID=$(UID) GID=$(GID) $(DOCKER_COMPOSE) build
 
-# Restart the services
-restart:
-	@if [ -z "$(word 2, $(MAKECMDGOALS))" ]; then \
-		echo "Usage: make restart <service_name>"; exit 2; \
-	else \
-		$(DOCKER_COMPOSE) restart $(word 2, $(MAKECMDGOALS)); \
-	fi;
+# Combined build + start
+rebuild:
+	$(MAKE) build
+	$(MAKE) start
 
 # Remove all containers and networks
 delete:
@@ -155,4 +152,10 @@ help:
 	@echo "  make update-all         - Update all Docker images and restart services"
 	@echo "  make check-webui-diff   - Preview changes between image assets and local frontend/static (dry-run)"
 	@echo "  make update-webui       - Sync local frontend/static from the latest image assets (apply changes)"
-
+	@echo ""
+	@if [ -f "Makefile.local" ]; then \
+		echo "🎨 Custom Open WebUI Features (Makefile.local):"; \
+		grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile.local | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-25s - %s\n", $$1, $$2}' || true; \
+		echo ""; \
+	fi

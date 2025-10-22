@@ -128,18 +128,13 @@ This project includes optional custom enhancements to Open WebUI. These modifica
 
 **Note**: Custom features are entirely optional and the system works perfectly with the official Open WebUI image.
 
-### Building Custom Open WebUI (Optional)
+### Using Custom Features (Optional)
 
-If you want to use custom features:
-```sh
-# Build custom Open WebUI image
-make build-webui
-
-# Update when new version available
-make rebuild-webui
-```
-
-See `Agents.md` for detailed architecture and development documentation.
+See `Agents.md` for detailed architecture and development documentation including:
+- Custom patch system
+- Multi-environment setup (staging/production)  
+- Image versioning and rollback
+- Development workflows
 
 ## Additional Commands
 
@@ -171,18 +166,6 @@ See `Agents.md` for detailed architecture and development documentation.
   Pull latest images and restart all services.
 ```sh
   make update-all
-```
-
-- **Check Open WebUI Updates (Preview)**:
-  Preview changes between image assets and local frontend/static without applying.
-```sh
-  make check-webui-diff
-```
-
-- **Update Open WebUI Assets**:
-  Sync local frontend/static from the latest image assets.
-```sh
-  make update-webui
 ```
 
 ### Advanced Management
