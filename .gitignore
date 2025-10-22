@@ -68,14 +68,15 @@ redis_data/
 etc/caddy/certs/*
 
 #Pipelines
-etc/pipelines/pipelines/*
+etc/pipelines/*
+
+etc/patches/*
 
 #Open WebUI
 etc/open-webui/data/*
-etc/open-webui/backend/*
-etc/open-webui/build/*
+etc/open-webui/data-staging/*
 
 # Functions
 functions/*
 
-etc/open-webui/entrypoint.sh
+AGENTS_orchestrator.md

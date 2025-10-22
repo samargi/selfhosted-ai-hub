@@ -60,50 +60,6 @@ services:
     volumes:
       - minio_data:/data
 
-  seed-openwebui-assets:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: seed-openwebui-assets
-    user: "0:0"
-    restart: "no"
-    command: |
-      sh -c '
-      set -eu
-      mkdir -p /host/build /host/backend-static
-
-      # Frontend
-      if [ -f /app/build/index.html ]; then
-        SRC_FRONT=/app/build
-      elif [ -f /app/frontend/dist/index.html ]; then
-        SRC_FRONT=/app/frontend/dist
-      else
-        echo "[seed][error] Could not locate frontend build"
-        exit 2
-      fi
-      echo "[seed] Using frontend source: $$SRC_FRONT"
-
-      if [ -z "$$(ls -A /host/build 2>/dev/null || true)" ]; then
-        echo "[seed] Seeding build -> /host/build"
-        cp -a "$$SRC_FRONT/." /host/build/
-      else
-        echo "[seed] /host/build already present, skipping."
-      fi
-
-      # Static assets
-      if [ -z "$$(ls -A /host/backend-static 2>/dev/null || true)" ]; then
-        if [ -d /app/backend/open_webui/static ]; then
-          echo "[seed] Seeding static -> /host/backend-static"
-          cp -a /app/backend/open_webui/static/. /host/backend-static/
-        else
-          echo "[seed][warn] /app/backend/open_webui/static not found, skipping static."
-        fi
-      else
-        echo "[seed] /host/backend-static already present, skipping."
-      fi
-      '
-    volumes:
-      - ./etc/open-webui/build:/host/build
-      - ./etc/open-webui/backend/static:/host/backend-static
-
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: openwebui
@@ -111,24 +67,20 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Build & Static
+      # Paths
       FRONTEND_BUILD_DIR: ${FRONTEND_BUILD_DIR}
       STATIC_DIR: ${STATIC_DIR}
       DATA_DIR: ${DATA_DIR}
       
-      # Authentication
+      # Auth & Security
       WEBUI_AUTH: ${WEBUI_AUTH}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
       WEBUI_NAME: ${WEBUI_NAME}
       
-      # OpenAI Integration
+      # API Keys
       OPENWEBUI_OPENAI_API_KEY: ${OPENWEBUI_OPENAI_API_KEY}
       OPENAI_API_BASE_URLS: ${OPENAI_API_BASE_URLS}
       OPENAI_API_KEYS: ${OPENAI_API_KEYS}
-      ENABLE_OPENAI_API: ${ENABLE_OPENAI_API}
-      
-      # Pipelines
-      PIPELINES_URLS: ${PIPELINES_URLS}
       
       # Search
       ENABLE_WEB_SEARCH: ${ENABLE_WEB_SEARCH}
@@ -141,20 +93,55 @@ services:
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       
       # Features
-      OPENWEBUI_DEFAULT_MODELS_VISIBILITY: ${OPENWEBUI_DEFAULT_MODELS_VISIBILITY}
-      ENABLE_FOLLOW_UP_GENERATION: ${ENABLE_FOLLOW_UP_GENERATION}
-      DEFAULT_PROMPT_SUGGESTIONS: ${DEFAULT_PROMPT_SUGGESTIONS}
-      ENABLE_PERSISTENT_CONFIG: ${ENABLE_PERSISTENT_CONFIG}
       ENABLE_CHANNELS: ${ENABLE_CHANNELS}
       ENABLE_COMMUNITY_SHARING: ${ENABLE_COMMUNITY_SHARING}
       ENABLE_FORWARD_USER_INFO_HEADERS: ${ENABLE_FORWARD_USER_INFO_HEADERS}
+      ENABLE_FOLLOW_UP_GENERATION: ${ENABLE_FOLLOW_UP_GENERATION}
+      ENABLE_PERSISTENT_CONFIG: ${ENABLE_PERSISTENT_CONFIG}
+      ENABLE_OPENAI_API: ${ENABLE_OPENAI_API}
+      
+      # Models
+      OPENWEBUI_DEFAULT_MODELS_VISIBILITY: ${OPENWEBUI_DEFAULT_MODELS_VISIBILITY}
+      DEFAULT_PROMPT_SUGGESTIONS: ${DEFAULT_PROMPT_SUGGESTIONS}
+      
+      # Pipelines
+      PIPELINES_URLS: ${PIPELINES_URLS}
+      
+      # ============================================
+      # SSE/WebSocket Critical Settings (ADD THESE)
+      # ============================================
+      
+      # Base URL - CRITICAL for SSE/WebSocket
+      WEBUI_URL: ${WEBUI_URL:-http://localhost:8080}
+      
+      # CORS Settings
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-*}
+      
+      # Session Settings (for starsessions)
+      WEBUI_SESSION_COOKIE_SAME_SITE: ${WEBUI_SESSION_COOKIE_SAME_SITE:-lax}
+      WEBUI_SESSION_COOKIE_SECURE: ${WEBUI_SESSION_COOKIE_SECURE:-false}
+      
+      # Logging
+      WEBUI_LOG_LEVEL: ${WEBUI_LOG_LEVEL:-INFO}
+      
+      # SSL Verification (development)
+      ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION: ${ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION:-false}
+      UVICORN_WORKERS: ${UVICORN_WORKERS}
+      ENABLE_WEBSOCKET_SUPPORT: ${ENABLE_WEBSOCKET_SUPPORT}
+      WEBSOCKET_MANAGER: ${WEBSOCKET_MANAGER}
+      WEBSOCKET_REDIS_URL: ${WEBSOCKET_REDIS_URL}
+      REDIS_URL: ${REDIS_URL} 
+      
     volumes:
-      - ./etc/open-webui/build:/app/build
-      - ./etc/open-webui/backend/static:/app/backend/static
       - ./etc/open-webui/data:/app/backend/data
-    depends_on:
-      seed-openwebui-assets:
-        condition: service_completed_successfully
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   pipelines:
     image: ghcr.io/open-webui/pipelines:main
@@ -166,7 +153,8 @@ services:
       - ./etc/pipelines/pipelines:/app/pipelines
     environment:
       PIPELINES_API_KEY: ${PIPELINES_API_KEY}
-      PIPELINES_DIR: ${PIPELINES_DIR}
+      DOMAIN: ${DOMAIN}
+      STAGING_DOMAIN: ${STAGING_DOMAIN}
       MIN_UPDATES: ${MIN_UPDATES}
       MAX_UPDATES: ${MAX_UPDATES}
       MAX_THINK_TOKENS: ${MAX_THINK_TOKENS}
@@ -175,6 +163,7 @@ services:
       UPSTREAM_API_KEY: ${UPSTREAM_API_KEY}
       THINK_MODEL: ${THINK_MODEL}
       RESP_MODEL: ${RESP_MODEL}
+      PIPELINES_DIR: ${PIPELINES_DIR}
 
   n8n:
     image: n8nio/n8n:latest

@@ -2,41 +2,57 @@
     debug
 }
 
-# ---------- Root domain ----------
+# ---------- Root domain (PRODUCTION) ----------
 https://{$DOMAIN} {
     tls {
         alpn http/1.1 h2 acme-tls/1
-        # optional: email you@example.com
     }
-
     log {
-        output file /data/logs/access.log {
+        output file /data/logs/production-access.log {
             roll_size 10MiB
             roll_keep 5
             roll_keep_for 720h
         }
         format json
     }
-
     header {
         X-Frame-Options "SAMEORIGIN"
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
-        # Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
-
     encode zstd gzip
-
-    # Path routes
+    
     handle_path /langchain* {
         reverse_proxy langchain-api:8010
     }
     handle_path /flowise* {
         reverse_proxy flowise:3000
     }
-
-    # Default: Open WebUI for everyone
+    
     reverse_proxy openwebui:8080
+}
+
+# ---------- Staging subdomain (SAMA KUIN N8N) ----------
+https://staging.samarg.ddns.net {
+    tls {
+        alpn http/1.1 h2 acme-tls/1
+    }
+    log {
+        output file /data/logs/staging-access.log {
+            roll_size 10MiB
+            roll_keep 5
+            roll_keep_for 720h
+        }
+        format json
+    }
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+    encode zstd gzip
+    
+    reverse_proxy openwebui-staging:8080
 }
 
 # ---------- n8n subdomain ----------
@@ -44,14 +60,12 @@ https://{$N8N_HOST} {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
-
     encode zstd gzip
-
-    # Forward standard proxy headers (Caddy sets these by default, but explicit is fine)
+    
     reverse_proxy n8n:5678 {
         header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-Host  {host}
-        header_up X-Forwarded-For   {remote}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-For {remote}
     }
 }
 
@@ -60,7 +74,6 @@ https://{$DOMAIN}:4444 {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
-
     @docker_net {
         remote_ip 172.18.0.0/16
     }
@@ -77,7 +90,6 @@ https://{$DOMAIN}:4445 {
     tls {
         alpn http/1.1 h2 acme-tls/1
     }
-
     @docker_net {
         remote_ip 172.18.0.0/16
     }
